@@ -347,7 +347,6 @@ def test(refiner, test_loader):
         data_ = batch_to_device(data, device)
         logger.set(data_)
         pred_ = refiner(data_)
-        #losses = refiner.loss(pred_, data_)
         metrics = refiner.metrics(pred_, data_)
 
         errR = torch.cat([errR, metrics['R_error'].cpu().data], dim=0)
@@ -356,7 +355,6 @@ def test(refiner, test_loader):
 
         del pred_, data_
 
-    # if lat <= 0.2 and long <= 0.4 and R < 1: #requerment of Ford
     print(f'acc of lat<=0.25:{torch.sum(errlat <= 0.25) / errlat.size(0)}')
     print(f'acc of lat<=0.5:{torch.sum(errlat <= 0.5) / errlat.size(0)}')
     print(f'acc of lat<=1:{torch.sum(errlat <= 1) / errlat.size(0)}')
@@ -378,154 +376,6 @@ def test(refiner, test_loader):
 
     return
 
-def angle_from_Rmatrix(R):
-    '''
-
-    :param R:
-    :return: roll x, pitch:y, yaw:z
-    '''
-    if R[2,0] != 1 and R[2,0] != -1:
-         pitch_1 = -1*math.asin(R[2,0])
-         pitch_2 = math.pi - pitch_1
-         roll_1 = math.atan2( R[2,1] / math.cos(pitch_1) , R[2,2] /math.cos(pitch_1) )
-         roll_2 = math.atan2( R[2,1] / math.cos(pitch_2) , R[2,2] /math.cos(pitch_2) )
-         yaw_1 = math.atan2( R[1,0] / math.cos(pitch_1) , R[0,0] / math.cos(pitch_1) )
-         yaw_2 = math.atan2( R[1,0] / math.cos(pitch_2) , R[0,0] / math.cos(pitch_2) )
-
-         # IMPORTANT NOTE here, there is more than one solution but we choose the first for this case for simplicity !
-         # You can insert your own domain logic here on how to handle both solutions appropriately (see the reference publication link for more info).
-         sol_1 = np.array([roll_1, pitch_1, yaw_1])
-         sol_2 = np.array([roll_2, pitch_2, yaw_2])
-    else:
-         yaw = 0 # anything (we default this to zero)
-         if R[2,0] == -1:
-            pitch = math.pi/2
-            roll = yaw + math.atan2(R[0,1],R[0,2])
-         else:
-            pitch = -match.pi/2
-            roll = -1*yaw + math.atan2(-1*R[0,1],-1*R[0,2])
-         sol_1 = np.array([roll, pitch, yaw])
-         sol_2 = None
-
-    return sol_1, sol_2
-
-# save_root = "/data/dataset/Ford_AV/2017-10-26-V2-Log4"
-save_root = '../visual_kitti'
-def SaveConfidencePose(refiner, test_loader):
-    shift_pose = []
-    refiner.eval()
-    for idx, data in enumerate(test_loader):
-        data_ = batch_to_device(data, device)
-        logger.set(data_)
-        pred = refiner(data_)
-        #pred = map_tensor(pred_, lambda x: x[0].cpu())
-        data = map_tensor(data, lambda x: x[0].cpu())
-        # cam_r = data['ref']['camera']
-        # if 'points3D' in data['query'].keys():
-        #     p3D_q = data['query']['points3D']
-        # elif 'grd_key_3d' in pred['query'].keys():
-        #     # grd keypoints detection
-        #     p3D_q = pred['query']['grd_key_3d']
-        # else:
-        #     p3D_q = None
-        #
-        # p2D_q, valid_q = data['query']['camera'].world2image(data['query']['T_w2cam'] * p3D_q)
-        # if data_conf['mul_query']:
-        #     p2D_q_1, valid_q_1 = data['query_1']['camera'].world2image(data['query_1']['T_w2cam'] * p3D_q)
-        #     p2D_q_2, valid_q_2 = data['query_2']['camera'].world2image(data['query_2']['T_w2cam'] * p3D_q)
-        #     p2D_q_3, valid_q_3 = data['query_3']['camera'].world2image(data['query_3']['T_w2cam'] * p3D_q)
-        # p2D_r_gt, valid_r = cam_r.world2image(data['T_q2r_gt'] * p3D_q)
-        # p2D_q_init, _ = cam_r.world2image(data['T_q2r_init'] * p3D_q)
-        # p2D_q_opt, _ = cam_r.world2image(pred['T_q2r_opt'][-1] * p3D_q)
-        # if data_conf['mul_query']:
-        #     valid = (valid_q | valid_q_1 | valid_q_2 | valid_q_3) & valid_r
-        # else:
-        #     valid = valid_q & valid_r
-
-        # save pose
-        T_r2q_gt = data['T_q2r_gt'].inv()
-        T_q2r = logger.pre_q2r
-        diff_sat_pose = T_q2r@T_r2q_gt
-        shift_north, shift_east = diff_sat_pose.shift_NE()
-        # get yaw on axis z
-        sat_R, _ = angle_from_Rmatrix(diff_sat_pose.R[0])
-        yaw = sat_R[-1]
-        # yaw must in +-30 degree
-        if math.fabs(yaw) > 30./math.pi:
-            yaw = yaw - np.sign(yaw)*math.pi
-        #print(yaw, shift_north.item(), shift_east.item() )
-        shift_pose.append([yaw, shift_north.item(), shift_east.item()])
-
-        confidence_map_count = 2
-        if 'points3D_type' in data['query'].keys():
-            if data['query']['points3D_type'] == ['lidar']:
-                confidence_map_count = 1
-
-        imr, imq = data['ref']['image'].permute(1, 2, 0), data['query']['image'].permute(1, 2, 0)
-
-        # save confidence map
-        # satellite map
-        C_sat = merge_confidence_map(pred['ref']['confidences'], confidence_map_count) #[B,C,H,W]
-        C_sat = C_sat.cpu().numpy()[0,0]
-        plot_images([C_sat], cmaps=mpl.cm.gnuplot2, dpi=50)
-        axes = plt.gcf().axes
-        axes[0].imshow(imr, alpha=0.2, extent=axes[0].images[0]._extent)
-
-        if not os.path.exists(os.path.join(save_root,'confidence_maps')):
-            os.makedirs(os.path.join(save_root,'confidence_maps'))
-        if not os.path.exists(os.path.join(save_root,'confidence_maps/sat')):
-            os.makedirs(os.path.join(save_root,'confidence_maps/sat'))
-        save_plot(os.path.join(save_root, 'confidence_maps/sat', str(idx) + '.png'))
-
-        # query images
-        C_q = merge_confidence_map(pred['query']['confidences'], confidence_map_count)  # [B,C,H,W]
-        C_q = C_q.cpu().numpy()[0, 0]
-        plot_images([C_q], cmaps=mpl.cm.gnuplot2, dpi=50)
-        axes = plt.gcf().axes
-        axes[0].imshow(imq, alpha=0.2, extent=axes[0].images[0]._extent)
-
-        if not os.path.exists(os.path.join(save_root,'confidence_maps/fl')):
-            os.makedirs(os.path.join(save_root,'confidence_maps/fl'))
-        save_plot(os.path.join(save_root, 'confidence_maps/fl', str(idx) + '.png'))
-
-        if data_conf['mul_query']:
-            imq_1, imq_2, imq_3 = data['query_1']['image'].permute(1, 2, 0), data['query_2']['image'].permute(1, 2, 0), \
-                                  data['query_3']['image'].permute(1, 2, 0)
-
-            # rr images
-            C_q1 = merge_confidence_map(pred['query_1']['confidences'], confidence_map_count)  # [B,C,H,W]
-            C_q1 = C_q1.cpu().numpy()[0, 0]
-            plot_images([C_q1], cmaps=mpl.cm.gnuplot2, dpi=50)
-            axes = plt.gcf().axes
-            axes[0].imshow(imq_1, alpha=0.2, extent=axes[0].images[0]._extent)
-            if not os.path.exists(os.path.join(save_root, 'confidence_maps/rr')):
-                os.makedirs(os.path.join(save_root, 'confidence_maps/rr'))
-            save_plot(os.path.join(save_root, 'confidence_maps/rr', str(idx) + '.png'))
-
-            # sl images
-            C_q2 = merge_confidence_map(pred['query_2']['confidences'], confidence_map_count)  # [B,C,H,W]
-            C_q2 = C_q2.cpu().numpy()[0, 0]
-            plot_images([C_q2], cmaps=mpl.cm.gnuplot2, dpi=50)
-            axes = plt.gcf().axes
-            axes[0].imshow(imq_2, alpha=0.2, extent=axes[0].images[0]._extent)
-            if not os.path.exists(os.path.join(save_root, 'confidence_maps/sl')):
-                os.makedirs(os.path.join(save_root, 'confidence_maps/sl'))
-            save_plot(os.path.join(save_root, 'confidence_maps/sl', str(idx) + '.png'))
-
-            # sr images
-            C_q3 = merge_confidence_map(pred['query_3']['confidences'], confidence_map_count)  # [B,C,H,W]
-            C_q3 = C_q3.cpu().numpy()[0, 0]
-            plot_images([C_q3], cmaps=mpl.cm.gnuplot2, dpi=50)
-            axes = plt.gcf().axes
-            axes[0].imshow(imq_3, alpha=0.2, extent=axes[0].images[0]._extent)
-            if not os.path.exists(os.path.join(save_root, 'confidence_maps/sr')):
-                os.makedirs(os.path.join(save_root, 'confidence_maps/sr'))
-            save_plot(os.path.join(save_root, 'confidence_maps/sr', str(idx) + '.png'))
-
-    with open(os.path.join(save_root, 'shift_pose.npy'), 'wb') as f:
-        np.save(f, shift_pose)
-    return
-
 if __name__ == '__main__':
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
@@ -537,5 +387,3 @@ if __name__ == '__main__':
         test(refiner, val_loader)
     if 1: # val
         Val(refiner, val_loader, save_path, 0)
-    if 0: # save confidence map
-        SaveConfidencePose(refiner, test_loader)
