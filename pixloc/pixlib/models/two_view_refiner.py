@@ -25,7 +25,6 @@ import time
 
 
 logger = logging.getLogger(__name__)
-
 pose_loss = True
 
 def get_weight_from_reproloss(err):
@@ -103,9 +102,9 @@ class TwoViewRefiner(BaseModel):
             confidence_count = 1
 
         if data['query']['image'].size(-1) > 1224:
-            grd_plane_height = 1.65 # kitti
+            grd_plane_height = 1.65-0.7267 # kitti IMU height
         else:
-            grd_plane_height = 1.6 # ford
+            grd_plane_height = 1.6-1.2836 # ford body height
 
         # find ground key points from confidence map. top from each grd_img
         if 'query_3' in data.keys():
@@ -121,10 +120,7 @@ class TwoViewRefiner(BaseModel):
 
             # turn grd key points from 2d to 3d, assume points are on ground
             p3d_grd_key = data[q]['camera'].image2world(p2d_grd_key) # 2D->3D scale unknown
-
-            current_grd_plane_height = (data[q]['T_w2cam'] * torch.zeros(1, 3).to(p3d_grd_key))[
-                                           0, 0, 1] + grd_plane_height
-            depth = current_grd_plane_height / p3d_grd_key[:, :, 1]
+            depth = grd_plane_height / p3d_grd_key[:, :, 1]
             p3d_grd_key = depth.unsqueeze(-1) * p3d_grd_key
             # each camera coordinate to 'query' coordinate
             p3d_grd_key = data[q]['T_w2cam'].inv()*p3d_grd_key
@@ -134,7 +130,6 @@ class TwoViewRefiner(BaseModel):
             else:
                 p3D_query = torch.cat([p3D_query, p3d_grd_key], dim=1)
         pred['query']['grd_key_3d'] = p3D_query
-
 
         T_init = data['T_q2r_init']
 
