@@ -257,39 +257,9 @@ class _Dataset(Dataset):
         ned2sat_r = np.array([[0,1,0],[-1,0,0],[0,0,1]]) #ned y->sat x; ned -x->sat y, ned z->sat z
         # to pose
         ned2sat = Pose.from_Rt(ned2sat_r, np.array([0.,0,0])).float() # shift in K
-        # # sat coordinate to ground(east=z/south=x) coordinate , then, to camera coordinate
-        # body2ned = Pose.from_aa( np.array([roll, pitch, heading]),np.zeros(3)).float()
-        # # cam->body->ned->sat without translate
-        # #cam2sat = ned2sat @ body2ned @ Pose.from_4x4mat(self.FL_relPose_body).float()
-        # R_fl2body = self.FL_relPose_body.copy()
-        # R_fl2body[:,3] = 0.
-        # cam2sat = ned2sat @ body2ned @ Pose.from_4x4mat(R_fl2body).float()
-
-
-        # # add the offset between camera and body to shift the center to query camera
-        # cam2sat_ori = ned2sat @ body2ned @ Pose.from_4x4mat(self.FL_relPose_body).float()
-        # cam_location = cam2sat_ori*torch.tensor([0.,0.,0.])/meter_per_pixel
-        # cam_location_x = dx_pixel_gps + satellite_ori_size / 2.0 + cam_location[0,0]
-        # cam_location_y = dy_pixel_gps + satellite_ori_size / 2.0 + cam_location[0,1]
         camera = Camera.from_colmap(dict(
             model='SIMPLE_PINHOLE', params=(1 / meter_per_pixel, dx_pixel+satellite_ori_size / 2.0, dy_pixel+satellite_ori_size / 2.0, 0,0,0,0,np.infty),#np.infty for parallel projection
             width=int(satellite_ori_size), height=int(satellite_ori_size)))
-
-        # if not gt_from_gps:
-        #     cam_location_x = dx_pixel_ned + satellite_ori_size / 2.0 + cam_location[0,0]
-        #     cam_location_y = dy_pixel_ned + satellite_ori_size / 2.0 + cam_location[0,1]
-        #     camera = Camera.from_colmap(dict(
-        #         model='SIMPLE_PINHOLE', params=(1 / meter_per_pixel, cam_location_x, cam_location_y, 0,0,0,0,np.infty),#np.infty for parallel projection
-        #         width=int(satellite_ori_size), height=int(satellite_ori_size)))
-        #
-        #     if 0: #debug gps
-        #         cam_location_x = dx_pixel_gps + satellite_ori_size / 2.0 + cam_location[0, 0]
-        #         cam_location_y = dy_pixel_gps + satellite_ori_size / 2.0 + cam_location[0, 1]
-        #         camera_gps = Camera.from_colmap(dict(
-        #             model='SIMPLE_PINHOLE',
-        #             params=(1 / meter_per_pixel, cam_location_x, cam_location_y, 0, 0, 0, 0, np.infty),
-        #             # np.infty for parallel projection
-        #             width=int(satellite_ori_size), height=int(satellite_ori_size)))
 
         sat_image = {
             'image': sat_map.float(),
@@ -299,7 +269,6 @@ class _Dataset(Dataset):
 
         # grd ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         log_folder = os.path.join(self.root, self.log_id)
-        key_points = None
         if self.conf['mul_query']>0:
             # ground images, rear right camera
             query_image_folder = os.path.join(log_folder, self.log_id + "-RR")
