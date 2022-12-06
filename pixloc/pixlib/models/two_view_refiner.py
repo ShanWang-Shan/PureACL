@@ -189,7 +189,6 @@ class TwoViewRefiner(BaseModel):
                         mask_cur = mask_cur & ~(multi_projection & ~reset)
 
                         W_q = W_q_cur * mask_cur[:,:,None] + W_q * mask[:,:,None]
-                        # W_q += W_q_cur * mask_cur[:,:,None]
 
                     if F_q is None:
                         F_q = F_q_cur * mask_cur[:,:,None]
@@ -258,11 +257,6 @@ class TwoViewRefiner(BaseModel):
 
         return torch.sum(loss, dim=-1)/(torch.sum(valid)+1e-6)
 
-    # # add by shan for satellite image extractor
-    # def add_sat_extractor(self):
-    #     self.extractor.add_sat_branch()
-
-    # add by shan for satellite image extractor
     def add_grd_confidence(self):
         self.extractor.add_grd_confidence()
 
