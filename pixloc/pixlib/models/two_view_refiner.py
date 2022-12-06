@@ -124,15 +124,7 @@ class TwoViewRefiner(BaseModel):
 
             current_grd_plane_height = (data[q]['T_w2cam'] * torch.zeros(1, 3).to(p3d_grd_key))[
                                            0, 0, 1] + grd_plane_height
-            if data['query']['image'].size(-1) > 1224:
-                # to pramary camera rotation
-                p3d_grd_cam0 = torch.einsum('...ij,...nj->...ni', data[q]['T_w2cam'].inv().R, p3d_grd_key)
-                # ignore camera rotation
-                cam2plane_R = torch.tensor([[0.9999, -0.0083, -0.0128],[0.0085,0.9999,0.0141],[0.0127,-0.0142,0.9998]]).to(p3d_grd_key)
-                p3d_grd_cam0 = torch.einsum('...ij,...nj->...ni', cam2plane_R, p3d_grd_cam0)
-                depth = current_grd_plane_height / p3d_grd_cam0[:, :, 1]
-            else:
-                depth = current_grd_plane_height / p3d_grd_key[:, :, 1]
+            depth = current_grd_plane_height / p3d_grd_key[:, :, 1]
             p3d_grd_key = depth.unsqueeze(-1) * p3d_grd_key
             # each camera coordinate to 'query' coordinate
             p3d_grd_key = data[q]['T_w2cam'].inv()*p3d_grd_key
