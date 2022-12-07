@@ -121,8 +121,12 @@ class TwoViewRefiner(BaseModel):
 
             # turn grd key points from 2d to 3d, assume points are on ground
             p3d_grd_key = data[q]['camera'].image2world(p2d_grd_key) # 2D->3D scale unknown
-            depth = grd_plane_height / p3d_grd_key[:, :, 1]
-            p3d_grd_key = depth.unsqueeze(-1) * p3d_grd_key
+            # get normal of ground plane
+            pose_sat2cam = data[q]['T_w2cam']@data['T_q2r_gt'].inv()
+            normal = pose_sat2cam.R @ torch.tensor([0,0,-1]).to(p3d_grd_key)
+            # depth * p3d_grd_key @ Normal = grd_plane_height -> depth = grd_plane_height/(p3d_grd_key @ Normal)
+            depth = grd_plane_height / (p3d_grd_key @ normal.T)
+            p3d_grd_key = depth * p3d_grd_key
             # each camera coordinate to 'query' coordinate
             p3d_grd_key = data[q]['T_w2cam'].inv()*p3d_grd_key # camera to query
 
