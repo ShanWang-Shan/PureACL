@@ -40,7 +40,7 @@ ToTensor = transforms.Compose([
 
 class Kitti(BaseDataset):
     default_conf = {
-        'dataset_dir': '/data/dataset/Kitti', #"/home/shan/data/Kitti"
+        'dataset_dir': "/home/shan/data/Kitti", #'/data/dataset/Kitti', #
         'mul_query': False,
     }
 

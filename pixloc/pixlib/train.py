@@ -431,14 +431,14 @@ def main_worker(rank, conf, output_dir, args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--experiment', type=str, default='ford')
+    parser.add_argument('--experiment', type=str, default='kitti')
     parser.add_argument('--conf', type=str)
     parser.add_argument('--overfit', action='store_true', default=False)
     parser.add_argument('--restore', action='store_true', default=True)
     parser.add_argument('--distributed', action='store_true',default=False)
-    parser.add_argument('--dotlist', nargs='*', default=["data.name=ford",
-                                                         "data.num_workers=0","data.train_batch_size=1","data.test_batch_size=1",
-                                                         "data.mul_query=2"])# 0: 1 image input, 1: 2 image inputs, 2: 4 image inputs
+    parser.add_argument('--dotlist', nargs='*', default=["data.name=kitti",
+                                                         "data.num_workers=0","data.train_batch_size=3","data.test_batch_size=3",
+                                                         "data.mul_query=0"])# 0: 1 image input, 1: 2 image inputs, 2: 4 image inputs
                                                          # "train.lr=1e-4",
                                                          # "model.optimizer.num_iters=15"])
     args = parser.parse_intermixed_args()
@@ -476,5 +476,5 @@ if __name__ == '__main__':
             main_worker, nprocs=args.n_gpus,
             args=(conf, output_dir, args))
     else:
-        os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+        os.environ["CUDA_VISIBLE_DEVICES"] = '1'
         main_worker(0, conf, output_dir, args)
