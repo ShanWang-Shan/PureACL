@@ -52,6 +52,8 @@ class TwoViewRefiner(BaseModel):
 
         # deprecated entries
         'init_target_offset': None,
+
+        'grd_height': 1.6,
     }
     required_data_keys = {
         'ref': ['image', 'camera', 'T_w2cam'],
@@ -79,6 +81,7 @@ class TwoViewRefiner(BaseModel):
         if conf.init_target_offset is not None:
             raise ValueError('This entry has been deprecated. Please instead '
                              'use the `init_pose` config of the dataloader.')
+        self.grd_height = conf.grd_height
 
     def _forward(self, data):
         def process_siamese(data_i, data_type):
@@ -102,11 +105,6 @@ class TwoViewRefiner(BaseModel):
         if pred['ref']['confidences'][0].size(1) == 1:
             confidence_count = 1
 
-        if data['query']['image'].size(-1) > 1224:
-            grd_plane_height = 1.65 # kitti camera height
-        else:
-            grd_plane_height = 1.6 # ford camera height
-
         # find ground key points from confidence map. top from each grd_img
         if 'query_3' in data.keys():
             query_list = ['query', 'query_1', 'query_2', 'query_3']
@@ -122,10 +120,10 @@ class TwoViewRefiner(BaseModel):
             # turn grd key points from 2d to 3d, assume points are on ground
             p3d_grd_key = data[q]['camera'].image2world(p2d_grd_key) # 2D->3D scale unknown
             # get normal of ground plane
-            pose_sat2cam = data[q]['T_w2cam']@(data['T_q2r_gt'].inv())
+            pose_sat2cam = data[q]['T_w2cam']@(data['T_q2r_init'].inv())
             normal = pose_sat2cam.R @ torch.tensor([0,0,1]).to(p3d_grd_key)
             # depth * p3d_grd_key @ Normal = grd_plane_height -> depth = grd_plane_height/(p3d_grd_key @ Normal)
-            depth = grd_plane_height / torch.einsum('...ni,...i->...n', p3d_grd_key, normal)
+            depth = self.grd_height / torch.einsum('...ni,...i->...n', p3d_grd_key, normal)
             p3d_grd_key = depth.unsqueeze(-1) * p3d_grd_key
             # each camera coordinate to 'query' coordinate
             p3d_grd_key = data[q]['T_w2cam'].inv()*p3d_grd_key # camera to query
