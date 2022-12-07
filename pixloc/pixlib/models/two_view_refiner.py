@@ -125,8 +125,8 @@ class TwoViewRefiner(BaseModel):
             pose_sat2cam = data[q]['T_w2cam']@data['T_q2r_gt'].inv()
             normal = pose_sat2cam.R @ torch.tensor([0,0,-1]).to(p3d_grd_key)
             # depth * p3d_grd_key @ Normal = grd_plane_height -> depth = grd_plane_height/(p3d_grd_key @ Normal)
-            depth = grd_plane_height / (p3d_grd_key @ normal.T)
-            p3d_grd_key = depth * p3d_grd_key
+            depth = grd_plane_height / torch.einsum('...ni,...i->...n', p3d_grd_key, normal)
+            p3d_grd_key = depth.unsqueeze(-1) * p3d_grd_key
             # each camera coordinate to 'query' coordinate
             p3d_grd_key = data[q]['T_w2cam'].inv()*p3d_grd_key # camera to query
 
