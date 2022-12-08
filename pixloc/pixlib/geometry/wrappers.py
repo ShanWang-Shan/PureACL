@@ -233,7 +233,7 @@ class Pose(TensorWrapper):
             laterral translation distance in meters.
             longitudinal translation distance in meters.
         '''
-        return torch.abs(self.t[..., 0]), torch.abs(self.t[..., -1])
+        return torch.abs(self.t[..., 1]), torch.abs(self.t[..., 0]) # query coordinate, x:longitudinal y:laterral
     def shift_NE(self) -> Tuple[torch.Tensor]:
         '''shift in north and east, in meter
         self is in satellite, reference coordinates
