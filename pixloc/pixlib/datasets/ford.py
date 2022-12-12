@@ -350,6 +350,12 @@ class _Dataset(Dataset):
             'T_w2cam': Pose.from_4x4mat(body2FL).float()
         }
 
+        # calculate road Normal for key point from camera 2D to 3D, in query coordinate
+        normal = torch.tensor([0.,0,1]) # down, z axis of body coordinate
+        # ignore roll angle
+        ignore_roll = Pose.from_aa(np.array([roll, 0, 0]), np.zeros(3)).float()
+        normal = ignore_roll * normal
+
         # gt pose~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # query is body, ref is NED
         body2ned = Pose.from_aa(np.array([roll, pitch, heading]), np.zeros(3)).float()
@@ -374,6 +380,7 @@ class _Dataset(Dataset):
             'query': FL_image,
             'T_q2r_init': body2sat_init,
             'T_q2r_gt': body2sat,
+            'normal': normal,
         }
         if self.conf['mul_query'] > 0:
             data['query_1'] = RR_image

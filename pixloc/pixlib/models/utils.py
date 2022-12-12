@@ -67,12 +67,8 @@ def extract_keypoints(confidence, topk=256, start_ratio=0.65):
     w_end = -1
     h_end = -1
     radius = 4
-    if confidence.size(3) > 1224:
-        # fix here, need move to config ---------------
-        # kitti 375×1242, 370×1224,374×1238, and376×1241 -> 384, 1248
-        start_ratio = 0.55
+    if start_ratio != 0.65:
         radius = 6
-        #---------------------------------------------
 
     #  only extract close to ground part (start_H:)
     start_H = int(confidence.size(2)*start_ratio)

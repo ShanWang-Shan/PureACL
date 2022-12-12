@@ -28,6 +28,59 @@ logger = logging.getLogger(__name__)
 
 pose_loss = True
 
+# for debug
+def homography_trans(image_ref, image_q, I_ref, I_q, E, height, N_q):
+    # inputs:
+    #   image_ref:  image
+    #   I_ref,I_q: camera
+    #   E: pose ex q->ref
+    #   height: rotation of target camera
+    #   N_q: normal: tensor, size 1,3
+    # return:
+    #   save q image
+
+    h, w = image_q.shape[-2:]
+
+    # get back warp matrix
+    i = torch.arange(0, h)
+    j = torch.arange(0, w)
+    ii, jj = torch.meshgrid(i, j)  # i:h,j:w
+    #ones = torch.ones_like(ii)
+    uv = torch.stack([jj, ii], dim=-1).float().to(N_q)  # shape = [h, w, 3]
+
+    p_q = I_q.image2world(uv)
+    # depth * p3d_grd_key @ Normal = grd_plane_height -> depth = grd_plane_height/(p3d_grd_key @ Normal)
+    depth = height / torch.einsum('hwi, i->hw', p_q, N_q)
+    p_q = depth.unsqueeze(-1) * p_q
+    p_ref = E*p_q # shape = [h,w,3]
+    uv, _ = I_ref.world2image(p_ref)
+
+    # lefttop to center u:south, v: up from center to -1,-1 top left, 1,1 buttom right
+    center = torch.tensor([image_ref.size(-1) // 2, image_ref.size(-2) // 2]).to(uv)
+    uv_center = (uv - center)/center
+
+    out = nnF.grid_sample(image_ref.unsqueeze(0), uv_center.unsqueeze(0), mode='bilinear',
+                        padding_mode='zeros')
+    out = transforms.functional.to_pil_image(out.squeeze(0), mode='RGB')
+    out_image = np.array(out)
+    plt.imshow(out_image)
+    plt.show()
+
+    # compare ori q and ref->q
+    fig = plt.figure(figsize=plt.figaspect(0.5))
+    ax1 = fig.add_subplot(2, 1, 1)
+    ax2 = fig.add_subplot(2, 1, 2)
+    image_ori_q = transforms.functional.to_pil_image(image_q, mode='RGB')
+    image_ori_q = np.array(image_ori_q)
+    # ignore up 50%
+    image_ori_q[:int(h*0.65)] = 0
+    out_image[:int(h*0.65)] = 0
+    ax1.imshow(image_ori_q)
+    ax2.imshow(out_image)
+    plt.show()
+
+    return
+
 def get_weight_from_reproloss(err):
     # the reprojection loss is from 0 to 16.67 ,tensor[B]
 
@@ -115,18 +168,24 @@ class TwoViewRefiner(BaseModel):
         for q in query_list:
             # find 2d key points from grd confidence map
             grd_key_confidence = merge_confidence_map(pred[q]['confidences'],confidence_count) #[B,H,W]
-            p2d_grd_key = extract_keypoints(grd_key_confidence)
+            if self.grd_height == 1.65: # kitti
+                start_ratio = 0.55
+            else:
+                start_ratio = 0.65
+            p2d_grd_key = extract_keypoints(grd_key_confidence, start_ratio = start_ratio)
 
             # turn grd key points from 2d to 3d, assume points are on ground
             p3d_grd_key = data[q]['camera'].image2world(p2d_grd_key) # 2D->3D scale unknown
-            # get normal of ground plane
-            pose_sat2cam = data[q]['T_w2cam']@(data['T_q2r_init'].inv())
-            normal = pose_sat2cam.R @ torch.tensor([0,0,1]).to(p3d_grd_key)
+            # normal from query to camera coordinate
+            normal = torch.einsum('...ij,...cj->...ci', data[q]['T_w2cam'].R, data['normal'])
+            normal = normal.squeeze(1)
             # depth * p3d_grd_key @ Normal = grd_plane_height -> depth = grd_plane_height/(p3d_grd_key @ Normal)
             depth = self.grd_height / torch.einsum('...ni,...i->...n', p3d_grd_key, normal)
             p3d_grd_key = depth.unsqueeze(-1) * p3d_grd_key
             # each camera coordinate to 'query' coordinate
             p3d_grd_key = data[q]['T_w2cam'].inv()*p3d_grd_key # camera to query
+            # debug to check the normal is correct, project grd2sat
+            #homography_trans(data['ref']['image'][0], data[q]['image'][0], data['ref']['camera'][0], data[q]['camera'][0], data['T_q2r_gt']@(data[q]['T_w2cam'].inv()), self.grd_height, normal[0])
 
             if q == 'query':
                 p3D_query = p3d_grd_key

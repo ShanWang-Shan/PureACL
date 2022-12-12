@@ -40,7 +40,7 @@ ToTensor = transforms.Compose([
 
 class Kitti(BaseDataset):
     default_conf = {
-        'dataset_dir': "/home/shan/data/Kitti", #'/data/dataset/Kitti', #
+        'dataset_dir': '/data/dataset/Kitti', #"/home/shan/data/Kitti", #
         'mul_query': False,
     }
 
@@ -251,10 +251,16 @@ class _Dataset(Dataset):
             'T_w2cam': Pose.from_4x4mat(np.eye(4)).float()  # grd 2 sat in q2r, so just eye(4)
         }
 
+        # calculate road Normal for key point from camera 2D to 3D, in query coordinate
+        normal = torch.tensor([0.,0,-1]) # down, -z axis of imu coordinate
+        # ignore roll angle
+        ignore_roll = Pose.from_aa(np.array([-roll, 0, 0]), np.zeros(3)).float()
+        normal = ignore_roll * normal
+
         grd2imu = Pose.from_aa(np.array([-roll, pitch, -heading]), np.zeros(3)) # grd_x:east, grd_y:north, grd_z:up
         q2r_gt = grd2sat@grd2imu.inv()
 
-        # ramdom shift translation and rotation on yaw
+        # ramdom shift translation and rotation on yaw/heading
         YawShiftRange = 15 * np.pi / 180  # in 15 degree
         yaw = 2 * YawShiftRange * np.random.random() - YawShiftRange
         R_yaw = torch.tensor([[np.cos(yaw), -np.sin(yaw), 0], [np.sin(yaw), np.cos(yaw), 0], [0, 0, 1]])
@@ -271,6 +277,7 @@ class _Dataset(Dataset):
             'query': grd_image,
             'T_q2r_init': q2r_init.float(),
             'T_q2r_gt': q2r_gt.float(),
+            'normal': normal.float(),
         }
         if self.conf['mul_query']:
             data['query_1'] = grd_image_r
