@@ -102,7 +102,7 @@ def inverse_pose(pose):
 
 class FordAV(BaseDataset):
     default_conf = {
-        'dataset_dir': '/data/dataset/Ford_AV', #root_dir = "/home/shan/data/FordAV"
+        'dataset_dir': "/home/shan/data/FordAV", #'/data/dataset/Ford_AV', #
         'mul_query': 2
     }
 
@@ -363,10 +363,10 @@ class _Dataset(Dataset):
 
         # init and gt pose~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # ramdom shift translation and rotation on yaw
-        YawShiftRange = 30 * np.pi / 180  # in 10 degree
+        YawShiftRange = 15 * np.pi / 180 #error degree 
         yaw = 2 * YawShiftRange * np.random.random() - YawShiftRange
         R_yaw = torch.tensor([[np.cos(yaw),-np.sin(yaw),0],  [np.sin(yaw),np.cos(yaw),0], [0, 0, 1]])
-        TShiftRange = 10  # in 5 meter
+        TShiftRange = 5 
         T = 2 * TShiftRange * np.random.rand((3)) - TShiftRange
         T[2] = 0  # no shift on height
         #print(f'in dataset: yaw:{yaw/np.pi*180},t:{T}')
