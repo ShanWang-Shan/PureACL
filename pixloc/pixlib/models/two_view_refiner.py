@@ -208,72 +208,51 @@ class TwoViewRefiner(BaseModel):
             else:
                 opt = self.optimizer
 
-            if 'query_1' in data.keys():
-                # multi query -----------------------------------------------------
-                if 'query_3' in data.keys():
-                    querys = ('query', 'query_1', 'query_2', 'query_3')
-                else:
-                    querys = ('query', 'query_1')
-
-                W_q = None
-                F_q = None
-                mask = None
-                for q in querys:
-                    F_q_cur = pred[q]['feature_maps'][i]
-                    cam_q = pred[q]['camera_pyr'][i]
-
-                    p2D_query, visible = cam_q.world2image(data[q]['T_w2cam'] * p3D_query)
-                    F_q_cur, mask_cur, _ = opt.interpolator(F_q_cur, p2D_query)
-                    mask_cur &= visible
-
-                    W_q_cur = pred[q]['confidences'][i]
-                    W_q_cur, _, _ = opt.interpolator(W_q_cur, p2D_query)
-                    # merge W_q_cur to W_q
-                    if W_q is None:
-                        W_q = W_q_cur * mask_cur[:,:,None]
-                    else:
-                        # check repeat
-                        multi_projection = torch.logical_and(mask, mask_cur)
-                        reset = W_q_cur[:,:,0]*W_q_cur[:,:,1] * multi_projection > W_q[:,:,0]*W_q[:,:,1] * multi_projection
-                        mask = mask & (~reset)
-                        mask_cur = mask_cur & ~(multi_projection & ~reset)
-
-                        W_q = W_q_cur * mask_cur[:,:,None] + W_q * mask[:,:,None]
-
-                    if F_q is None:
-                        F_q = F_q_cur * mask_cur[:,:,None]
-                        mask = mask_cur
-                    else:
-                        F_q = F_q_cur * mask_cur[:,:,None] + F_q * mask[:,:,None]
-                        mask = torch.logical_or(mask, mask_cur)
-
-                W_ref = pred['ref']['confidences'][i]
-                W_ref_q = (W_ref, W_q, confidence_count)
-
-                if self.conf.normalize_features:
-                    F_q = nnF.normalize(F_q, dim=2)  # B x N x C
-                    F_ref = nnF.normalize(F_ref, dim=1)  # B x C x W x H
-
+            if 'query_3' in data.keys():
+                querys = ['query', 'query_1', 'query_2', 'query_3']
+            elif 'query_1' in data.keys():
+                querys = ['query', 'query_1']
             else:
-                ## only one query---------------------------------------------------
-                F_q = pred['query']['feature_maps'][i]
-                cam_q = pred['query']['camera_pyr'][i]
+                querys = ['query']
 
-                p2D_query, visible = cam_q.world2image(data['query']['T_w2cam']*p3D_query)
-                F_q, mask, _ = opt.interpolator(F_q, p2D_query)
-                mask &= visible
+            W_q = None
+            F_q = None
+            mask = None
+            for q in querys:
+                F_q_cur = pred[q]['feature_maps'][i]
+                cam_q = pred[q]['camera_pyr'][i]
 
-                W_q = pred['query']['confidences'][i]
-                W_q, _, _ = opt.interpolator(W_q, p2D_query)
-                W_ref = pred['ref']['confidences'][i]
-                W_ref_q = (W_ref, W_q, confidence_count)
+                p2D_query, visible = cam_q.world2image(data[q]['T_w2cam'] * p3D_query)
+                F_q_cur, mask_cur, _ = opt.interpolator(F_q_cur, p2D_query)
+                mask_cur &= visible
 
+                W_q_cur = pred[q]['confidences'][i]
+                W_q_cur, _, _ = opt.interpolator(W_q_cur, p2D_query)
+                # merge W_q_cur to W_q
+                if W_q is None:
+                    W_q = W_q_cur * mask_cur[:,:,None]
+                else:
+                    # check repeat
+                    multi_projection = torch.logical_and(mask, mask_cur)
+                    reset = W_q_cur[:,:,0]*W_q_cur[:,:,1] * multi_projection > W_q[:,:,0]*W_q[:,:,1] * multi_projection
+                    mask = mask & (~reset)
+                    mask_cur = mask_cur & ~(multi_projection & ~reset)
 
-                if self.conf.normalize_features:
-                    F_q = nnF.normalize(F_q, dim=2)  # B x N x C
-                    F_ref = nnF.normalize(F_ref, dim=1)  # B x C x W x H
-                ## end only one query---------------------------------------------------
+                    W_q = W_q_cur * mask_cur[:,:,None] + W_q * mask[:,:,None]
 
+                if F_q is None:
+                    F_q = F_q_cur * mask_cur[:,:,None]
+                    mask = mask_cur
+                else:
+                    F_q = F_q_cur * mask_cur[:,:,None] + F_q * mask[:,:,None]
+                    mask = torch.logical_or(mask, mask_cur)
+
+            W_ref = pred['ref']['confidences'][i]
+            W_ref_q = (W_ref, W_q, confidence_count)
+
+            if self.conf.normalize_features:
+                F_q = nnF.normalize(F_q, dim=2)  # B x N x C
+                F_ref = nnF.normalize(F_ref, dim=1)  # B x C x W x H
 
             T_opt, failed = opt(dict(
                 p3D=p3D_query, F_ref=F_ref, F_q=F_q, T_init=T_init, camera=cam_ref,
