@@ -73,13 +73,13 @@ class AdaptationBlock(nn.Sequential):
 class UNet(BaseModel):
     default_conf = {
         'output_scales': [0, 2, 4],  # what scales to adapt and output
-        'output_dim': 128,  # # of channels in output feature maps
+        'output_dim': [32, 128, 128],  # # of channels in output feature maps
         'encoder': 'vgg16',  # string (torchvision net) or list of channels
         'num_downsample': 4,  # how many downsample block (if VGG-style net)
-        'decoder': [64, 64, 64, 64],  # list of channels of decoder
+        'decoder': [64, 64, 64, 32],  # list of channels of decoder
         'decoder_norm': 'nn.BatchNorm2d',  # normalization ind decoder blocks
         'do_average_pooling': False,
-        'compute_uncertainty': False,
+        'compute_uncertainty': True,
         'checkpointed': False,  # whether to use gradient checkpointing
     }
     mean = [0.485, 0.456, 0.406]

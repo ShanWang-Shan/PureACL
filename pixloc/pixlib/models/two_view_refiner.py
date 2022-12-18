@@ -92,13 +92,13 @@ def get_weight_from_reproloss(err):
 class TwoViewRefiner(BaseModel):
     default_conf = {
         'extractor': {
-            'name': 's2dnet',
+            'name': 'unet', #'s2dnet',
         },
         'optimizer': {
-            'name': 'basic_optimizer',
+            'name': 'learned_optimizer', #'basic_optimizer',
         },
-        'duplicate_optimizer_per_scale': False,
-        'success_thresh': 2,
+        'duplicate_optimizer_per_scale': True,
+        'success_thresh': 3,
         'clamp_error': 50,
         'normalize_features': True,
         'normalize_dt': True,
@@ -106,7 +106,7 @@ class TwoViewRefiner(BaseModel):
         # deprecated entries
         'init_target_offset': None,
 
-        'grd_height': 1.6,
+        'grd_height': 1.65,
     }
     required_data_keys = {
         'ref': ['image', 'camera', 'T_w2cam'],

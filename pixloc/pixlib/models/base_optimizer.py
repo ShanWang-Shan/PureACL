@@ -22,11 +22,11 @@ logger = logging.getLogger(__name__)
 
 class BaseOptimizer(BaseModel):
     default_conf = dict(
-        num_iters=100,
-        loss_fn='squared_loss',
+        num_iters=15, #100,
+        loss_fn='scaled_barron(0, 0.1)', #'squared_loss',
         jacobi_scaling=False,
         normalize_features=False,
-        lambda_=0,  # Gauss-Newton
+        lambda_=0.01, #0,  # Gauss-Newton
         interpolation=dict(
             mode='linear',
             pad=4,
