@@ -406,7 +406,10 @@ class Camera(TensorWrapper):
 
     def image2world(self, p2d: torch.Tensor) -> torch.Tensor:
         '''Transform 2D pixel coordinates into 3D points, scale unknown .'''
-        p3d_xy = (p2d - self.c.unsqueeze(-2))/self.f.unsqueeze(-2)
+        if p2d.dim() == 4:
+            p3d_xy = (p2d - self.c[:, None, None, :]) / self.f[:, None, None, :]
+        else:
+            p3d_xy = (p2d - self.c.unsqueeze(-2)) / self.f.unsqueeze(-2)
         if np.infty in self._data:
             # para projection, z unknown
             p3d = torch.cat([p3d_xy, torch.zeros_like(p3d_xy[..., :1])], dim=-1)

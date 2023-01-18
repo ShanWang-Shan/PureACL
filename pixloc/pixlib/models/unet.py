@@ -15,6 +15,7 @@ from copy import deepcopy
 # for 1 unet test
 # HAVE_SAT = False
 two_confidence = True # False when only grd
+max_dis = 200
 
 class DecoderBlock(nn.Module):
     def __init__(self, previous, skip, out, num_convs=1, norm=nn.BatchNorm2d):
@@ -137,6 +138,7 @@ class UNet(BaseModel):
     def _init(self, conf):
         # Encoder
         self.encoder, skip_dims = self.build_encoder(conf)
+        self.add_extra_input()  # add for pose enbedding
 
         # Decoder
         if conf.decoder is not None:
@@ -187,8 +189,27 @@ class UNet(BaseModel):
 
     def _forward(self, data):
         image = data['image']
-        mean, std = image.new_tensor(self.mean), image.new_tensor(self.std)
-        image = (image - mean[:, None, None]) / std[:, None, None]
+        # mean, std = image.new_tensor(self.mean), image.new_tensor(self.std)
+        # image = (image - mean[:, None, None]) / std[:, None, None]
+
+        # embedding height & distance & angle
+        b, _, h, w = image.shape
+        device = image.device
+        vv, uu = torch.meshgrid(torch.arange(h, device=device), torch.arange(w, device=device), indexing='ij')
+        uv = torch.stack([uu, vv], dim=-1)
+        uv = uv[None, :, :, :].repeat(b, 1, 1, 1)  # shape = [b, h, w, 2]
+        p3d = data['cam'].image2world(uv)  # [b, h, w, 3]
+        p3d = torch.einsum('bij,bhwj->...bhwi', data['w2c'].inv().R, p3d)  # query world coordinate
+        angle = p3d[..., 1] / torch.sqrt(p3d[..., 0] ** 2 + p3d[..., 1] ** 2)  # sin -1~1
+        if data['type'] == 'grd':
+            dis = data['grd_height']/torch.clamp_min(p3d[..., 2], 1E-8)/max_dis  #
+            dis = torch.clamp_max(dis, 1.5) # dis/max_dis, should less than 1.5, infinity clamp to 1.5
+            height = p3d[..., 2]
+        else:
+            dis = torch.sqrt(p3d[..., 0] ** 2 + p3d[..., 1] ** 2)/max_dis
+            height = -1 * torch.ones_like(p3d[..., 2]) # all -1 as max height
+        extr = torch.stack([angle, height, dis], dim=1).to(device)  # shape = [b, 3, h, w]
+        image = torch.cat([image, extr], dim=1) # shape = [b, 6, h, w]
 
         skip_features = []
         features = image
@@ -268,3 +289,10 @@ class UNet(BaseModel):
             param.requires_grad = False
         for param in self.adaptation.parameters():
             param.requires_grad = False
+    def add_extra_input(self):
+        layer = self.encoder[0][0]
+        # Creating new Conv2d layer
+        new_layer = nn.Conv2d(6,64,kernel_size=3,padding=1).to(layer.weight)
+        new_weight = torch.cat([layer.weight.clone(), new_layer.weight[:,3:].clone()], dim=1)
+        new_layer.weight = nn.Parameter(new_weight)
+        self.encoder[0][0] = new_layer

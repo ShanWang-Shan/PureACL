@@ -140,6 +140,12 @@ class TwoViewRefiner(BaseModel):
         def process_siamese(data_i, data_type):
             if data_type == 'ref':
                 data_i['type'] = 'sat'
+                data_i['w2c'] = data_i['T_w2cam'] @ data['T_q2r_init']
+            else:
+                data_i['type'] = 'grd'
+                data_i['w2c'] = data_i['T_w2cam']
+                data_i['grd_height'] = self.grd_height
+            data_i['cam'] = data_i['camera']
             pred_i = self.extractor(data_i)
             pred_i['camera_pyr'] = [data_i['camera'].scale(1 / s)
                                     for s in self.extractor.scales]
@@ -169,7 +175,7 @@ class TwoViewRefiner(BaseModel):
             # find 2d key points from grd confidence map
             grd_key_confidence = merge_confidence_map(pred[q]['confidences'],confidence_count) #[B,H,W]
             if self.grd_height == 1.65: # kitti
-                start_ratio = 0.55
+                start_ratio = 0.60
             else:
                 start_ratio = 0.65
             p2d_grd_key = extract_keypoints(grd_key_confidence, start_ratio = start_ratio)
