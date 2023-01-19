@@ -199,11 +199,14 @@ class _Dataset(Dataset):
             model='PINHOLE', params=camera_para,
             width=int(grd_process_size[1]), height=int(grd_process_size[0])))
         imu2camera_left = Pose.from_4x4mat(camera_ex) @ imu2camera
+        # same coordinate with ford body for better generability: IMU pose, x: forword, y:right, z:down
+        body2imu = Pose.from_4x4mat(
+            np.array([[1., 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]]))  # no shift, x->x, y->-y, z->-z
         grd_image = {
             # to array, when have multi query
             'image': grd_left.float(),
             'camera': camera.float(),
-            'T_w2cam': imu2camera_left.float(),  # query is IMU pose, IMU2CameraLeft
+            'T_w2cam': (imu2camera_left@body2imu).float(),  # query is IMU pose, x: forword, y:right, z:down
         }
 
         # grd right
@@ -217,7 +220,7 @@ class _Dataset(Dataset):
                 # to array, when have multi query
                 'image': grd_right.float(),
                 'camera': camera.float(),
-                'T_w2cam': imu2camera_right.float(), # query is IMU pose, IMU2CameraRight
+                'T_w2cam': (imu2camera_right@body2imu).float(), # query is IMU pose, IMU2CameraRight
             }
 
         # satellite map
@@ -252,13 +255,14 @@ class _Dataset(Dataset):
         }
 
         # calculate road Normal for key point from camera 2D to 3D, in query coordinate
-        normal = torch.tensor([0.,0,-1]) # down, -z axis of imu coordinate
+        normal = torch.tensor([0.,0, 1]) # down, z axis of body coordinate
         # ignore roll angle, point to sea level,  only left pitch
         ignore_roll = Pose.from_aa(np.array([-roll, 0, 0]), np.zeros(3)).float()
         normal = ignore_roll * normal
 
-        grd2imu = Pose.from_aa(np.array([-roll, pitch, -heading]), np.zeros(3)) # grd_x:east, grd_y:north, grd_z:up
-        q2r_gt = grd2sat@grd2imu.inv()
+        imu2grd = Pose.from_aa(np.array([roll, -pitch, heading]), np.zeros(3)) # grd_x:east, grd_y:north, grd_z:up
+        # grd2imu = Pose.from_aa(np.array([-roll, pitch, -heading]), np.zeros(3)) # grd_x:east, grd_y:north, grd_z:up
+        q2r_gt = grd2sat@imu2grd@body2imu
 
         # ramdom shift translation and rotation on yaw/heading
         YawShiftRange = 15 * np.pi / 180  # in 15 degree
