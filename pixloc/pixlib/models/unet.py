@@ -209,7 +209,7 @@ class UNet(BaseModel):
         if data['type'] == 'grd':
             scale = data['grd_height']/torch.clamp_min(p3d[..., 2], 1E-8) # up half is inf
             dis = torch.sqrt((p3d[..., 0]*scale) ** 2 + (p3d[..., 1]*scale) ** 2) / max_dis
-            dis = torch.where(dis>1.2, torch.tensor(-1.), dis) # dis/max_dis, igonore far than max_dis
+            dis = torch.where(dis>1.2, torch.tensor(-1.).to(dis), dis) # dis/max_dis, igonore far than max_dis
             height = p3d[..., 2]
         else:
             dis = torch.sqrt(p3d[..., 0] ** 2 + p3d[..., 1] ** 2)/max_dis
