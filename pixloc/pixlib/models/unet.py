@@ -16,6 +16,11 @@ from copy import deepcopy
 # HAVE_SAT = False
 two_confidence = True # False when only grd
 max_dis = 200
+debug_pe = False
+
+if debug_pe:
+    from matplotlib import pyplot as plt
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 class DecoderBlock(nn.Module):
     def __init__(self, previous, skip, out, num_convs=1, norm=nn.BatchNorm2d):
@@ -202,12 +207,39 @@ class UNet(BaseModel):
         p3d = torch.einsum('bij,bhwj->...bhwi', data['w2c'].inv().R, p3d)  # query world coordinate
         angle = p3d[..., 1] / torch.sqrt(p3d[..., 0] ** 2 + p3d[..., 1] ** 2)  # sin -1~1
         if data['type'] == 'grd':
-            dis = data['grd_height']/torch.clamp_min(p3d[..., 2], 1E-8)/max_dis  #
-            dis = torch.clamp_max(dis, 1.5) # dis/max_dis, should less than 1.5, infinity clamp to 1.5
+            scale = data['grd_height']/torch.clamp_min(p3d[..., 2], 1E-8) # up half is inf
+            dis = torch.sqrt((p3d[..., 0]*scale) ** 2 + (p3d[..., 1]*scale) ** 2) / max_dis
+            dis = torch.clamp_max(dis, 1.) # dis/max_dis, igonore far than max_dis
             height = p3d[..., 2]
         else:
             dis = torch.sqrt(p3d[..., 0] ** 2 + p3d[..., 1] ** 2)/max_dis
             height = -1 * torch.ones_like(p3d[..., 2]) # all -1 as max height
+
+        if debug_pe:
+            # draw the query position on the satellite image
+            fig = plt.figure(figsize=plt.figaspect(0.5))
+            ax1 = fig.add_subplot(3, 1, 1)
+            ax2 = fig.add_subplot(3, 1, 2)
+            ax3 = fig.add_subplot(3, 1, 3)
+
+            im1 = ax1.imshow(angle, cmap='jet')
+            im2 = ax2.imshow(dis, cmap='jet')
+            im3 = ax3.imshow(height, cmap='jet')
+
+            divider = make_axes_locatable(ax1)
+            cax = divider.append_axes('right', size='5%', pad=0.05)
+            fig.colorbar(im1, cax=cax, orientation='vertical')
+
+            divider = make_axes_locatable(ax2)
+            cax = divider.append_axes('right', size='5%', pad=0.05)
+            fig.colorbar(im2, cax=cax, orientation='vertical')
+
+            divider = make_axes_locatable(ax3)
+            cax = divider.append_axes('right', size='5%', pad=0.05)
+            fig.colorbar(im3, cax=cax, orientation='vertical')
+
+            plt.show()
+
         extr = torch.stack([angle, height, dis], dim=1).to(device)  # shape = [b, 3, h, w]
         image = torch.cat([image, extr], dim=1) # shape = [b, 6, h, w]
 
