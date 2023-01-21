@@ -21,6 +21,8 @@ debug_pe = False
 if debug_pe:
     from matplotlib import pyplot as plt
     from mpl_toolkits.axes_grid1 import make_axes_locatable
+    import matplotlib as mpl
+    from pixloc.visualization.viz_2d import plot_images
 
 class DecoderBlock(nn.Module):
     def __init__(self, previous, skip, out, num_convs=1, norm=nn.BatchNorm2d):
@@ -216,15 +218,22 @@ class UNet(BaseModel):
             height = -0.6 * torch.ones_like(p3d[..., 2]) # all -0.6 as max height
 
         if debug_pe:
-            # draw the query position on the satellite image
+            plt.imshow(image[0].permute(1, 2, 0))
+            plt.axis("off")
+            plt.margins(0, 0)
+            plt.show()
             for img in (angle[0], dis[0], height[0]):
-                fig = plt.figure(figsize=plt.figaspect(1.))
-                ax1 = fig.add_subplot(1, 1, 1)
-                ax1.axis("off")
-                im1 = ax1.imshow(img, vmin=-1, vmax=1, cmap='jet', aspect='auto')
-                divider = make_axes_locatable(ax1)
-                cax = divider.append_axes('right', size='5%', pad=0.1)
-                fig.colorbar(im1, cax=cax, orientation='vertical')
+                # fig = plt.figure(figsize=plt.figaspect(1.))
+                # ax1 = fig.add_subplot(1, 1, 1)
+                # ax1.axis("off")
+                # im1 = ax1.imshow(img, vmin=-1, vmax=1, cmap='jet', aspect='auto')
+                # divider = make_axes_locatable(ax1)
+                # cax = divider.append_axes('right', size='5%', pad=0.1)
+                # fig.colorbar(im1, cax=cax, orientation='vertical')
+                # plt.show()
+                plot_images([img], cmaps=mpl.cm.gnuplot2, dpi=50)
+                axes = plt.gcf().axes
+                axes[0].imshow(image[0].permute(1,2,0), alpha=0.2, extent=axes[0].images[0]._extent)
                 plt.show()
 
         extr = torch.stack([angle, height, dis], dim=1).to(device)  # shape = [b, 3, h, w]
