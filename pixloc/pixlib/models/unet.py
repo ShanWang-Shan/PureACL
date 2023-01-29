@@ -209,7 +209,7 @@ class UNet(BaseModel):
         p3d = torch.einsum('bij,bhwj->...bhwi', data['w2c'].inv().R, p3d)  # query world coordinate
         angle = p3d[..., 0] / torch.sqrt(p3d[..., 0] ** 2 + p3d[..., 1] ** 2)  # cos -1~1
         if data['type'] == 'grd':
-            scale = data['grd_height']/torch.clamp_min(p3d[..., 2], 1E-8) # up half is inf
+            scale = data['camera_h']/torch.clamp_min(p3d[..., 2], 1E-8) # up half is inf
             dis = torch.sqrt((p3d[..., 0]*scale) ** 2 + (p3d[..., 1]*scale) ** 2) / max_dis
             dis = torch.where(dis>1.2, torch.tensor(-1.).to(dis), dis) # dis/max_dis, igonore far than max_dis
             height = p3d[..., 2]

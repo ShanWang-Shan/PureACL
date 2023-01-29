@@ -33,6 +33,7 @@ vel_dir = 'velodyne_points/data'
 grd_ori_size = (375, 1242) # different size in Kitti 375×1242, 370×1224,374×1238, and376×1241, but 375×1242 in calibration
 grd_process_size = (384, 1248)
 satellite_ori_size = 1280
+# query_grd_dis = 0.9054 #1.65-0.7446
 
 
 ToTensor = transforms.Compose([
@@ -207,6 +208,7 @@ class _Dataset(Dataset):
             'image': grd_left.float(),
             'camera': camera.float(),
             'T_w2cam': (imu2camera_left@body2imu).float(),  # query is IMU pose, x: forword, y:right, z:down
+            'camera_h': torch.tensor(1.65)
         }
 
         # grd right
@@ -221,6 +223,7 @@ class _Dataset(Dataset):
                 'image': grd_right.float(),
                 'camera': camera.float(),
                 'T_w2cam': (imu2camera_right@body2imu).float(), # query is IMU pose, IMU2CameraRight
+                'camera_h': torch.tensor(1.65)
             }
 
         # satellite map
@@ -273,7 +276,7 @@ class _Dataset(Dataset):
         T[2] = 0  # no shift on height
 
         # shift = Pose.from_Rt(R_yaw,T)
-        shift = Pose.from_aa(np.array([0, 0, yaw]), T).float()
+        shift = Pose.from_aa(np.array([0, 0, yaw]), T)
         q2r_init = shift @ q2r_gt
 
         # scene
@@ -283,12 +286,13 @@ class _Dataset(Dataset):
             'T_q2r_init': q2r_init.float(),
             'T_q2r_gt': q2r_gt.float(),
             'normal': normal.float(),
+            'grd_ratio': torch.tensor(0.6)
         }
         if self.conf['mul_query']:
             data['query_1'] = grd_image_r
 
         # debug
-        if 0:
+        if 1:
             fig = plt.figure(figsize=plt.figaspect(0.5))
             ax1 = fig.add_subplot(1, 2, 1)
             ax2 = fig.add_subplot(1, 2, 2)
@@ -312,6 +316,8 @@ class _Dataset(Dataset):
             origin_2d_gt, _ = data['ref']['camera'].world2image(data['T_q2r_gt'] * origin)
             origin_2d_init, _ = data['ref']['camera'].world2image(data['T_q2r_init'] * origin)
             direct = torch.tensor([6.,0,0])
+            direct = torch.tensor([0., 0, 0])
+            direct = data['query']['T_w2cam'].inv()*direct
             direct_2d_gt, _ = data['ref']['camera'].world2image(data['T_q2r_gt'] * direct)
             direct_2d_init, _ = data['ref']['camera'].world2image(data['T_q2r_init'] * direct)
             origin_2d_gt = origin_2d_gt.squeeze(0)
@@ -335,7 +341,7 @@ class _Dataset(Dataset):
 if __name__ == '__main__':
     # test to load 1 data
     conf = {
-        'dataset_dir': '/data/dataset/Kitti',  # "/home/shan/data/Kitti"
+        'dataset_dir': '/home/shan/Dataset/Kitti', #'/data/dataset/Kitti',  # "/home/shan/data/Kitti"
         'batch_size': 1,
         'num_workers': 0,
         'mul_query': True

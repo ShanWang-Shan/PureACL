@@ -147,7 +147,7 @@ class _Dataset(Dataset):
         sat_image = {
             'image': sat_map.float(),
             'camera': camera.float(),
-            'T_w2cam': Pose.from_4x4mat(np.eye(4)).float()  # grd 2 sat in q2r, so just eye(4)
+            'T_w2cam': Pose.from_4x4mat(np.eye(4)).float(),  # grd 2 sat in q2r, so just eye(4)
         }
 
         # grd ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -170,7 +170,8 @@ class _Dataset(Dataset):
                 # to array, when have multi query
                 'image': grd.float(),
                 'camera': camera.float(),
-                'T_w2cam': body2rear.float() # body2camera
+                'T_w2cam': body2rear.float(), # body2camera
+                'camera_h': torch.tensor(1.44)
             }
 
             if self.conf['mul_query'] > 1:
@@ -190,7 +191,8 @@ class _Dataset(Dataset):
                     # to array, when have multi query
                     'image': grd.float(),
                     'camera': camera.float(),
-                    'T_w2cam': body2left.float()  # body2camera
+                    'T_w2cam': body2left.float(),  # body2camera
+                    'camera_h': torch.tensor(1.36)
                 }
 
                 # ground images, side right camera
@@ -209,7 +211,8 @@ class _Dataset(Dataset):
                     # to array, when have multi query
                     'image': grd.float(),
                     'camera': camera.float(),
-                    'T_w2cam': body2right.float()  # body2camera
+                    'T_w2cam': body2right.float(),  # body2camera
+                    'camera_h': torch.tensor(1.36)
                 }
 
         # ground images, front color camera
@@ -228,7 +231,8 @@ class _Dataset(Dataset):
             # to array, when have multi query
             'image': grd.float(),
             'camera': camera.float(),
-            'T_w2cam': body2front.float()  # body2camera
+            'T_w2cam': body2front.float(),  # body2camera
+            'camera_h': torch.tensor(1.52)
         }
 
         # calculate road Normal for key point from camera 2D to 3D, in query coordinate
@@ -265,6 +269,7 @@ class _Dataset(Dataset):
             'T_q2r_init': body2sat_init,
             'T_q2r_gt': body2sat,
             'normal': normal,
+            'grd_ratio': torch.tensor(0.45)
         }
         if self.conf['mul_query'] > 0:
             data['query_1'] = R_image

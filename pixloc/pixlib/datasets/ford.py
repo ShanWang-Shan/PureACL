@@ -38,7 +38,7 @@ info_dir = 'info_files'
 satellite_ori_size = 1280
 query_size = [432, 816]
 query_ori_size = [860, 1656]
-LF_height = 1.6
+# query_grd_height=0.335 #1.6-1.265
 
 ToTensor = transforms.Compose([
     transforms.ToTensor()])
@@ -68,13 +68,6 @@ def read_numpy(root_folder, file_name):
         print("file open IO error, not exist?")
     return cur_file
 
-def convert_body_yaw_to_360(yaw_body):
-    if (yaw_body >90.0) and (yaw_body <=180.0):
-        yaw_360 = 360.0 - yaw_body + 90.0
-    else:
-        yaw_360 = 90.0 - yaw_body
-    return yaw_360
-
 def quat_from_pose(trans):
 
     w = trans['transform']['rotation']['w']
@@ -102,7 +95,7 @@ def inverse_pose(pose):
 
 class FordAV(BaseDataset):
     default_conf = {
-        'dataset_dir': '/data/dataset/Ford_AV', #"/home/shan/data/FordAV", #
+        'dataset_dir': '/data/FordAV', #/data/dataset/Ford_AV', #"/home/shan/data/FordAV", #
         'mul_query': 2
     }
 
@@ -244,7 +237,7 @@ class _Dataset(Dataset):
             dx_pixel = dx / meter_per_pixel # along the east direction
             dy_pixel = -dy / meter_per_pixel # along the north direction
 
-        heading = self.groundview_yaws[idx] * np.pi / 180.0#convert_body_yaw_to_360(self.groundview_yaws[idx]) * np.pi / 180.0 # heading of car
+        heading = self.groundview_yaws[idx] * np.pi / 180.0
         roll = self.groundview_rolls[idx] * np.pi / 180.0
         pitch = self.groundview_pitchs[idx] * np.pi / 180.0
 
@@ -282,12 +275,13 @@ class _Dataset(Dataset):
                 model='PINHOLE', params=camera_para,
                 width=int(query_size[1]), height=int(query_size[0])))
             #FL2RR = inverse_pose(self.RR_relPose_body) @ self.FL_relPose_body
-            body2RR = inverse_pose(self.RR_relPose_body)
+            # body2RR = inverse_pose(self.RR_relPose_body)
             RR_image = {
                 # to array, when have multi query
                 'image': grd.float(),
                 'camera': camera.float(),
-                'T_w2cam': Pose.from_4x4mat(body2RR).float() # body2camera
+                'T_w2cam': Pose.from_4x4mat(self.RR_relPose_body).inv().float(), # body2camera
+                'camera_h': torch.tensor(1.623)
             }
 
             if self.conf['mul_query'] > 1:
@@ -303,12 +297,13 @@ class _Dataset(Dataset):
                     model='PINHOLE', params=camera_para,
                     width=int(query_size[1]), height=int(query_size[0])))
                 #FL2SL = inverse_pose(self.SL_relPose_body) @ self.FL_relPose_body
-                body2SL = inverse_pose(self.SL_relPose_body)
+                # body2SL = inverse_pose(self.SL_relPose_body)
                 SL_image = {
                     # to array, when have multi query
                     'image': grd.float(),
                     'camera': camera.float(),
-                    'T_w2cam': Pose.from_4x4mat(body2SL).float()
+                    'T_w2cam': Pose.from_4x4mat(self.SL_relPose_body).inv().float(),
+                    'camera_h': torch.tensor(1.545)
                 }
 
                 # ground images, side right camera
@@ -323,12 +318,13 @@ class _Dataset(Dataset):
                     model='PINHOLE', params=camera_para,
                     width=int(query_size[1]), height=int(query_size[0])))
                 #FL2SR = inverse_pose(self.SR_relPose_body) @ self.FL_relPose_body
-                body2SR = inverse_pose(self.SR_relPose_body)
+                # body2SR = inverse_pose(self.SR_relPose_body)
                 SR_image = {
                     # to array, when have multi query
                     'image': grd.float(),
                     'camera': camera.float(),
-                    'T_w2cam': Pose.from_4x4mat(body2SR).float()
+                    'T_w2cam': Pose.from_4x4mat(self.SR_relPose_body).inv().float(),
+                    'camera_h': torch.tensor(1.527)
                 }
 
         # ground images, front left color camera
@@ -342,18 +338,19 @@ class _Dataset(Dataset):
         camera = Camera.from_colmap(dict(
             model='PINHOLE', params=camera_para,
             width=int(query_size[1]), height=int(query_size[0])))
-        body2FL = inverse_pose(self.FL_relPose_body)
+        # body2FL = inverse_pose(self.FL_relPose_body)
         FL_image = {
             # to array, when have multi query
             'image': grd.float(),
             'camera': camera.float(),
-            'T_w2cam': Pose.from_4x4mat(body2FL).float()
+            'T_w2cam': Pose.from_4x4mat(self.FL_relPose_body).inv().float(),
+            'camera_h': torch.tensor(1.60)
         }
 
         # calculate road Normal for key point from camera 2D to 3D, in query coordinate
-        normal = torch.tensor([0.,0,1]) # down, z axis of body coordinate
+        normal = torch.tensor([0.,0, 1]) # down, z axis of body coordinate
         # ignore roll angle
-        ignore_roll = Pose.from_aa(np.array([-roll, 0, 0]), np.zeros(3)).float()
+        ignore_roll = Pose.from_aa(np.array([roll, 0, 0]), np.zeros(3)).float()
         normal = ignore_roll * normal
 
         # gt pose~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -365,14 +362,15 @@ class _Dataset(Dataset):
         # ramdom shift translation and rotation on yaw
         YawShiftRange = 15 * np.pi / 180 #error degree 
         yaw = 2 * YawShiftRange * np.random.random() - YawShiftRange
-        R_yaw = torch.tensor([[np.cos(yaw),-np.sin(yaw),0],  [np.sin(yaw),np.cos(yaw),0], [0, 0, 1]])
+        # R_yaw = torch.tensor([[np.cos(yaw),-np.sin(yaw),0],  [np.sin(yaw),np.cos(yaw),0], [0, 0, 1]])
         TShiftRange = 5 
         T = 2 * TShiftRange * np.random.rand((3)) - TShiftRange
         T[2] = 0  # no shift on height
         #print(f'in dataset: yaw:{yaw/np.pi*180},t:{T}')
 
         # add random yaw and t to init pose
-        init_shift = Pose.from_Rt(R_yaw,T).float()
+        # init_shift = Pose.from_Rt(R_yaw,T).float()
+        init_shift = Pose.from_aa(np.array([0,0,yaw]), T).float()
         body2sat_init = init_shift@body2sat
 
         data = {
@@ -381,6 +379,7 @@ class _Dataset(Dataset):
             'T_q2r_init': body2sat_init,
             'T_q2r_gt': body2sat,
             'normal': normal,
+            'grd_ratio': torch.tensor(0.65)
         }
         if self.conf['mul_query'] > 0:
             data['query_1'] = RR_image
@@ -399,7 +398,9 @@ class _Dataset(Dataset):
             origin = torch.zeros(3)
             origin_2d_gt, _ = data['ref']['camera'].world2image(data['T_q2r_gt'] * origin)
             origin_2d_init, _ = data['ref']['camera'].world2image(data['T_q2r_init'] * origin)
-            direct = torch.tensor([6.,0,0])
+            # direct = torch.tensor([6.,0,0])
+            direct = torch.tensor([0, 0, 0.])
+            direct = data['query_2']['T_w2cam'].inv()*direct
             direct_2d_gt, _ = data['ref']['camera'].world2image(data['T_q2r_gt'] * direct)
             direct_2d_init, _ = data['ref']['camera'].world2image(data['T_q2r_init'] * direct)
             origin_2d_gt = origin_2d_gt.squeeze(0)
@@ -458,7 +459,7 @@ class _Dataset(Dataset):
 if __name__ == '__main__':
     # test to load 1 data
     conf = {
-        'dataset_dir': '/data/dataset/Ford_AV',  # root_dir = "/home/shan/data/FordAV"
+        'dataset_dir': '/data/FordAV',  # root_dir = "/home/shan/data/FordAV"
         'batch_size': 1,
         'num_workers': 0,
         'mul_query': 2 # 0: FL; 1:FL+RR; 2:FL+RR+SL+SR
