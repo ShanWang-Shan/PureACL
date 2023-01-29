@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 import torch
 from matplotlib import pyplot as plt
-import ford_data_process.gps_coord_func as gps_func
+import robotcar_data_process.robotcar_gps_coord_func as gps_func
 import cv2
 from glob import glob
 from pixloc.pixlib.datasets.transformations import quaternion_matrix
@@ -41,53 +41,6 @@ grd_trans = transforms.Compose([
     transforms.Resize(query_size),
     transforms.ToTensor()])
 
-def read_calib_yaml(calib_folder, file_name):
-    with open(os.path.join(calib_folder, file_name), 'r') as stream:
-        try:
-            cur_yaml = yaml.safe_load(stream)
-        except yaml.YAMLError as exc:
-            print(exc)
-    return cur_yaml
-
-def read_txt(root_folder, file_name):
-    with open(os.path.join(root_folder, file_name)) as f:
-        cur_file = f.readlines()
-    return cur_file
-
-def read_numpy(root_folder, file_name):
-    try:
-        with open(os.path.join(root_folder, file_name), 'rb') as f:
-            cur_file = np.load(f, allow_pickle=True)
-    except IOError:
-        print("file open IO error, not exist?")
-    return cur_file
-
-
-def quat_from_pose(trans):
-
-    w = trans['transform']['rotation']['w']
-    x = trans['transform']['rotation']['x']
-    y = trans['transform']['rotation']['y']
-    z = trans['transform']['rotation']['z']
-
-    return [w,x,y,z]
-
-def trans_from_pose(trans):
-
-    x = trans['transform']['translation']['x']
-    y = trans['transform']['translation']['y']
-    z = trans['transform']['translation']['z']
-
-    return [x,y,z]
-
-def inverse_pose(pose):
-
-    pose_inv = np.identity(4)
-    pose_inv[:3,:3] = np.transpose(pose[:3,:3])
-    pose_inv[:3, 3] = - pose_inv[:3,:3] @ pose[:3,3]
-
-    return pose_inv
-
 def camera_in_ex(root, camera_model):
     # get camera model
     model_dir = os.path.join(root, "camera-models")
@@ -96,7 +49,11 @@ def camera_in_ex(root, camera_model):
     extrinsics_path = os.path.join(extrinsics_dir, camera.camera + '.txt')
     with open(extrinsics_path) as extrinsics_file:
         extrinsics = [float(x) for x in next(extrinsics_file).split(' ')]
-    G_camera_vehicle = build_se3_transform(extrinsics)
+    G_camera_vehicle = build_se3_transform(extrinsics) # to camera 0
+
+    with open(os.path.join(extrinsics_dir, 'ins.txt')) as extrinsics_file:
+        extrinsics = next(extrinsics_file)
+        G_camera_rtk = G_camera_vehicle * build_se3_transform([float(x) for x in extrinsics.split(' ')])
 
     # scale of process and original images
     if 'mono' in camera_model:
@@ -115,11 +72,11 @@ def camera_in_ex(root, camera_model):
     # with open(os.path.join(args.extrinsics_dir, 'ins.txt')) as extrinsics_file:
     #     extrinsics = next(extrinsics_file)
     #     G_camera_posesource = G_camera_vehicle * build_se3_transform([float(x) for x in extrinsics.split(' ')])
-    return camera_K, G_camera_vehicle
+    return camera_K, np.array(G_camera_rtk)
 
 class RobotCar(BaseDataset):
     default_conf = {
-        'dataset_dir': '/data/robotcar/', #/data/dataset/Ford_AV', #"/home/shan/data/FordAV", #
+        'dataset_dir': '/data/dataset/robotcar/', #/data/dataset/Ford_AV', #"/home/shan/data/FordAV", #
         'mul_query': 2
     }
 
@@ -206,12 +163,12 @@ class _Dataset(Dataset):
             camera = Camera.from_colmap(dict(
                 model='PINHOLE', params=camera_para,
                 width=int(query_size[1]), height=int(query_size[0])))
-            body2rear = inverse_pose(self.rearC_vehicle)
+            body2rear = Pose.from_4x4mat(self.rearC_vehicle).inv()
             R_image = {
                 # to array, when have multi query
                 'image': grd.float(),
                 'camera': camera.float(),
-                'T_w2cam': Pose.from_4x4mat(body2rear).float() # body2camera
+                'T_w2cam': body2rear.float() # body2camera
             }
 
             if self.conf['mul_query'] > 1:
@@ -226,12 +183,12 @@ class _Dataset(Dataset):
                 camera = Camera.from_colmap(dict(
                     model='PINHOLE', params=camera_para,
                     width=int(query_size[1]), height=int(query_size[0])))
-                body2left = inverse_pose(self.leftC_vehicle)
+                body2left = Pose.from_4x4mat(self.leftC_vehicle).inv()
                 SL_image = {
                     # to array, when have multi query
                     'image': grd.float(),
                     'camera': camera.float(),
-                    'T_w2cam': Pose.from_4x4mat(body2left).float()  # body2camera
+                    'T_w2cam': body2left.float()  # body2camera
                 }
 
                 # ground images, side right camera
@@ -245,16 +202,16 @@ class _Dataset(Dataset):
                 camera = Camera.from_colmap(dict(
                     model='PINHOLE', params=camera_para,
                     width=int(query_size[1]), height=int(query_size[0])))
-                body2right = inverse_pose(self.rightC_vehicle)
+                body2right = Pose.from_4x4mat(self.rightC_vehicle).inv()
                 SR_image = {
                     # to array, when have multi query
                     'image': grd.float(),
                     'camera': camera.float(),
-                    'T_w2cam': Pose.from_4x4mat(body2right).float()  # body2camera
+                    'T_w2cam': body2right.float()  # body2camera
                 }
 
         # ground images, front color camera
-        query_image_folder = os.path.join(log_folder, "stereo")
+        query_image_folder = os.path.join(log_folder, "stereo", "centre")
         name = os.path.join(query_image_folder, str(self.files['front_ts'][idx]) + '.png')
         with Image.open(name, 'r') as GrdImg:
             grd = GrdImg.convert('RGB')
@@ -264,24 +221,26 @@ class _Dataset(Dataset):
         camera = Camera.from_colmap(dict(
             model='PINHOLE', params=camera_para,
             width=int(query_size[1]), height=int(query_size[0])))
-        body2front = inverse_pose(self.frontC_vehicle)
+        body2front = Pose.from_4x4mat(self.frontC_vehicle).inv()
         F_image = {
             # to array, when have multi query
             'image': grd.float(),
             'camera': camera.float(),
-            'T_w2cam': Pose.from_4x4mat(body2front).float()  # body2camera
+            'T_w2cam': body2front.float()  # body2camera
         }
 
         # calculate road Normal for key point from camera 2D to 3D, in query coordinate
-        normal = torch.tensor([0.,0,1]) # down, z axis of body coordinate
+        normal = torch.tensor([0.,1.,0]) # down, y axis of body coordinate
         # ignore roll angle
-        ignore_roll = Pose.from_aa(np.array([-self.files['roll'][idx], 0, 0]), np.zeros(3)).float()
+        ignore_roll = Pose.from_aa(np.array([0, 0, -self.files['roll'][idx]]), np.zeros(3)).float()
         normal = ignore_roll * normal
 
         # gt pose~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # query is body, ref is NED
-        body2ned = Pose.from_aa(np.array([self.files['roll'][idx], self.files['pitch'][idx], self.files['yaw'][idx]]),
+        body2ned = Pose.from_aa(np.array([self.files['roll'][idx], self.files['pitch'][idx], -self.files['yaw'][idx]]),
                                 np.zeros(3)).float()
+        # body2ned = Pose.from_aa(np.array([self.files['pitch'][idx], -self.files['yaw'][idx], self.files['roll'][idx]]),
+        #                         np.zeros(3)).float()
         body2sat = ned2sat@body2ned
 
         # init and gt pose~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -322,7 +281,7 @@ class _Dataset(Dataset):
             origin = torch.zeros(3)
             origin_2d_gt, _ = data['ref']['camera'].world2image(data['T_q2r_gt'] * origin)
             origin_2d_init, _ = data['ref']['camera'].world2image(data['T_q2r_init'] * origin)
-            direct = torch.tensor([6.,0,0])
+            direct = torch.tensor([0.,0,6.])
             direct_2d_gt, _ = data['ref']['camera'].world2image(data['T_q2r_gt'] * direct)
             direct_2d_init, _ = data['ref']['camera'].world2image(data['T_q2r_init'] * direct)
             origin_2d_gt = origin_2d_gt.squeeze(0)
@@ -381,7 +340,7 @@ class _Dataset(Dataset):
 if __name__ == '__main__':
     # test to load 1 data
     conf = {
-        'dataset_dir': "/data/robotcar/",
+        'dataset_dir': "/data/dataset/robotcar/",
         'batch_size': 1,
         'num_workers': 0,
         'mul_query': 2 # 0: FL; 1:FL+RR; 2:FL+RR+SL+SR
