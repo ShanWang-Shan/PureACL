@@ -257,7 +257,7 @@ class _Dataset(Dataset):
         # calculate road Normal for key point from camera 2D to 3D, in query coordinate
         normal = torch.tensor([0.,0, 1]) # down, z axis of body coordinate
         # ignore roll angle, point to sea level,  only left pitch
-        ignore_roll = Pose.from_aa(np.array([-roll, 0, 0]), np.zeros(3)).float()
+        ignore_roll = Pose.from_aa(np.array([roll, 0, 0]), np.zeros(3)).float()
         normal = ignore_roll * normal
 
         imu2grd = Pose.from_aa(np.array([roll, -pitch, heading]), np.zeros(3)) # grd_x:east, grd_y:north, grd_z:up
@@ -267,12 +267,13 @@ class _Dataset(Dataset):
         # ramdom shift translation and rotation on yaw/heading
         YawShiftRange = 15 * np.pi / 180  # in 15 degree
         yaw = 2 * YawShiftRange * np.random.random() - YawShiftRange
-        R_yaw = torch.tensor([[np.cos(yaw), -np.sin(yaw), 0], [np.sin(yaw), np.cos(yaw), 0], [0, 0, 1]])
+        # R_yaw = torch.tensor([[np.cos(yaw), -np.sin(yaw), 0], [np.sin(yaw), np.cos(yaw), 0], [0, 0, 1]])
         TShiftRange = 5  # in 5 meter
         T = 2 * TShiftRange * np.random.rand((3)) - TShiftRange
         T[2] = 0  # no shift on height
 
-        shift = Pose.from_Rt(R_yaw,T)
+        # shift = Pose.from_Rt(R_yaw,T)
+        shift = Pose.from_aa(np.array([0, 0, yaw]), T).float()
         q2r_init = shift @ q2r_gt
 
         # scene

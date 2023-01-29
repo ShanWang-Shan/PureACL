@@ -33,6 +33,7 @@ satellite_ori_size = 1280
 query_size = [480, 640]
 query_front_ori_size = [960, 1280]
 query_mono_ori_size = [1024, 1024]
+# query height : 0.45m
 
 ToTensor = transforms.Compose([
     transforms.ToTensor()])
@@ -49,11 +50,16 @@ def camera_in_ex(root, camera_model):
     extrinsics_path = os.path.join(extrinsics_dir, camera.camera + '.txt')
     with open(extrinsics_path) as extrinsics_file:
         extrinsics = [float(x) for x in next(extrinsics_file).split(' ')]
-    G_camera_vehicle = build_se3_transform(extrinsics) # to camera 0
+    G_camera_vehicle = build_se3_transform(extrinsics) # camera 0 to caemra n
 
+    # rtk to camera 0
     with open(os.path.join(extrinsics_dir, 'ins.txt')) as extrinsics_file:
         extrinsics = next(extrinsics_file)
         G_camera_rtk = G_camera_vehicle * build_se3_transform([float(x) for x in extrinsics.split(' ')])
+
+    # camera face x-> face z
+    # camera_Rzx = np.array([[0,0,1,0],[1,0,0,0],[0,1,0,0],[0,0,0,1]])
+    camera_Rzx = np.array([[0, 1, 0, 0], [0, 0, 1, 0], [1, 0, 0, 0], [0, 0, 0, 1]])
 
     # scale of process and original images
     if 'mono' in camera_model:
@@ -68,11 +74,7 @@ def camera_in_ex(root, camera_model):
     camera_K[1, 1] = camera.focal_length[1] * scale_y
     camera_K[1, 2] = camera.principal_point[1] * scale_y
 
-    # rtk to vehicle coordinate # need ???
-    # with open(os.path.join(args.extrinsics_dir, 'ins.txt')) as extrinsics_file:
-    #     extrinsics = next(extrinsics_file)
-    #     G_camera_posesource = G_camera_vehicle * build_se3_transform([float(x) for x in extrinsics.split(' ')])
-    return camera_K, np.array(G_camera_rtk)
+    return camera_K, camera_Rzx@np.array(G_camera_rtk)
 
 class RobotCar(BaseDataset):
     default_conf = {
@@ -134,10 +136,10 @@ class _Dataset(Dataset):
             sat_map = SatMap.convert('RGB')
             sat_map = ToTensor(sat_map)
 
-        # ned: x: north, y: east, z:down
-        ned2sat_r = np.array([[0,1,0],[-1,0,0],[0,0,1]]) #ned y->sat x; ned -x->sat y, ned z->sat z
-        # to pose
-        ned2sat = Pose.from_Rt(ned2sat_r, np.array([0.,0,0])).float() # shift in K
+        # # ned: x: north, y: east, z:down
+        # ned2sat_r = np.array([[0,1,0],[-1,0,0],[0,0,1]]) #ned y->sat x; ned -x->sat y, ned z->sat z
+        # # to pose
+        # ned2sat = Pose.from_Rt(ned2sat_r, np.array([0.,0,0])).float() # shift in K
         camera = Camera.from_colmap(dict(
             model='SIMPLE_PINHOLE', params=(1 / meter_per_pixel, dx_pixel+satellite_ori_size / 2.0, dy_pixel+satellite_ori_size / 2.0, 0,0,0,0,np.infty),#np.infty for parallel projection
             width=int(satellite_ori_size), height=int(satellite_ori_size)))
@@ -163,7 +165,7 @@ class _Dataset(Dataset):
             camera = Camera.from_colmap(dict(
                 model='PINHOLE', params=camera_para,
                 width=int(query_size[1]), height=int(query_size[0])))
-            body2rear = Pose.from_4x4mat(self.rearC_vehicle).inv()
+            body2rear = Pose.from_4x4mat(self.rearC_vehicle)
             R_image = {
                 # to array, when have multi query
                 'image': grd.float(),
@@ -183,7 +185,7 @@ class _Dataset(Dataset):
                 camera = Camera.from_colmap(dict(
                     model='PINHOLE', params=camera_para,
                     width=int(query_size[1]), height=int(query_size[0])))
-                body2left = Pose.from_4x4mat(self.leftC_vehicle).inv()
+                body2left = Pose.from_4x4mat(self.leftC_vehicle)
                 SL_image = {
                     # to array, when have multi query
                     'image': grd.float(),
@@ -202,7 +204,7 @@ class _Dataset(Dataset):
                 camera = Camera.from_colmap(dict(
                     model='PINHOLE', params=camera_para,
                     width=int(query_size[1]), height=int(query_size[0])))
-                body2right = Pose.from_4x4mat(self.rightC_vehicle).inv()
+                body2right = Pose.from_4x4mat(self.rightC_vehicle)
                 SR_image = {
                     # to array, when have multi query
                     'image': grd.float(),
@@ -221,7 +223,7 @@ class _Dataset(Dataset):
         camera = Camera.from_colmap(dict(
             model='PINHOLE', params=camera_para,
             width=int(query_size[1]), height=int(query_size[0])))
-        body2front = Pose.from_4x4mat(self.frontC_vehicle).inv()
+        body2front = Pose.from_4x4mat(self.frontC_vehicle)
         F_image = {
             # to array, when have multi query
             'image': grd.float(),
@@ -230,31 +232,31 @@ class _Dataset(Dataset):
         }
 
         # calculate road Normal for key point from camera 2D to 3D, in query coordinate
-        normal = torch.tensor([0.,1.,0]) # down, y axis of body coordinate
+        normal = torch.tensor([0.,0.,1]) # down, z axis of body coordinate
         # ignore roll angle
-        ignore_roll = Pose.from_aa(np.array([0, 0, -self.files['roll'][idx]]), np.zeros(3)).float()
+        ignore_roll = Pose.from_aa(np.array([self.files['roll'][idx], 0, 0]), np.zeros(3)).float()
         normal = ignore_roll * normal
 
         # gt pose~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # query is body, ref is NED
-        body2ned = Pose.from_aa(np.array([self.files['roll'][idx], self.files['pitch'][idx], -self.files['yaw'][idx]]),
+        body2wnd = Pose.from_aa(np.array([self.files['roll'][idx], self.files['pitch'][idx], self.files['yaw'][idx]]),
                                 np.zeros(3)).float()
-        # body2ned = Pose.from_aa(np.array([self.files['pitch'][idx], -self.files['yaw'][idx], self.files['roll'][idx]]),
-        #                         np.zeros(3)).float()
-        body2sat = ned2sat@body2ned
+        wnd2sat = Pose.from_4x4mat(np.array([[-1,0,0,0],[0,-1,0,0],[0,0,0,0],[0,0,0,1]])).float()
+        body2sat = wnd2sat@body2wnd
+        # body2sat = ned2sat@body2ned
 
         # init and gt pose~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # ramdom shift translation and rotation on yaw
         YawShiftRange = 15 * np.pi / 180 #error degree 
         yaw = 2 * YawShiftRange * np.random.random() - YawShiftRange
-        R_yaw = torch.tensor([[np.cos(yaw),-np.sin(yaw),0],  [np.sin(yaw),np.cos(yaw),0], [0, 0, 1]])
+        # R_yaw = torch.tensor([[np.cos(yaw),-np.sin(yaw),0],  [np.sin(yaw),np.cos(yaw),0], [0, 0, 1]])
         TShiftRange = 5 
         T = 2 * TShiftRange * np.random.rand((3)) - TShiftRange
         T[2] = 0  # no shift on height
         #print(f'in dataset: yaw:{yaw/np.pi*180},t:{T}')
 
         # add random yaw and t to init pose
-        init_shift = Pose.from_Rt(R_yaw,T).float()
+        init_shift = Pose.from_aa(np.array([0, 0, yaw]), T).float()
         body2sat_init = init_shift@body2sat
 
         data = {
@@ -271,7 +273,7 @@ class _Dataset(Dataset):
             data['query_3'] = SR_image
 
         # debug
-        if 1:
+        if 0:
             color_image = transforms.functional.to_pil_image(data['ref']['image'], mode='RGB')
             color_image = np.array(color_image)
             plt.imshow(color_image)
@@ -281,7 +283,9 @@ class _Dataset(Dataset):
             origin = torch.zeros(3)
             origin_2d_gt, _ = data['ref']['camera'].world2image(data['T_q2r_gt'] * origin)
             origin_2d_init, _ = data['ref']['camera'].world2image(data['T_q2r_init'] * origin)
-            direct = torch.tensor([0.,0,6.])
+            # direct = torch.tensor([6.,0, 0])
+            direct = torch.tensor([0,0, 6.])
+            direct = data['query']['T_w2cam'].inv() * direct
             direct_2d_gt, _ = data['ref']['camera'].world2image(data['T_q2r_gt'] * direct)
             direct_2d_init, _ = data['ref']['camera'].world2image(data['T_q2r_init'] * direct)
             origin_2d_gt = origin_2d_gt.squeeze(0)
