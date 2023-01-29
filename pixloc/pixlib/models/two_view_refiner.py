@@ -173,7 +173,7 @@ class TwoViewRefiner(BaseModel):
         for q in query_list:
             # find 2d key points from grd confidence map
             grd_key_confidence = merge_confidence_map(pred[q]['confidences'],confidence_count) #[B,H,W]
-            p2d_grd_key = extract_keypoints(grd_key_confidence, start_ratio = data['grd_ratio'])
+            p2d_grd_key = extract_keypoints(grd_key_confidence, start_ratio = data['grd_ratio'][0])
 
             # turn grd key points from 2d to 3d, assume points are on ground
             p3d_grd_key = data[q]['camera'].image2world(p2d_grd_key) # 2D->3D scale unknown
@@ -181,7 +181,7 @@ class TwoViewRefiner(BaseModel):
             normal = torch.einsum('...ij,...cj->...ci', data[q]['T_w2cam'].R, data['normal'])
             normal = normal.squeeze(1)
             # depth * p3d_grd_key @ Normal = grd_plane_height -> depth = grd_plane_height/(p3d_grd_key @ Normal)
-            depth = data[q]['camera_h'] / torch.einsum('...ni,...i->...n', p3d_grd_key, normal)
+            depth = data[q]['camera_h'][:,None] / torch.einsum('...ni,...i->...n', p3d_grd_key, normal)
             p3d_grd_key = depth.unsqueeze(-1) * p3d_grd_key
             # each camera coordinate to 'query' coordinate
             p3d_grd_key = data[q]['T_w2cam'].inv()*p3d_grd_key # camera to query
