@@ -42,6 +42,49 @@ grd_trans = transforms.Compose([
     transforms.Resize(query_size),
     transforms.ToTensor()])
 
+def homography_trans(image, I_tar, I_src, E, N, height):
+    # inputs:
+    #   image: src image
+    #   I_tar,I_src:camera
+    #   E: pose
+    #   N: ground normal
+    #   height: ground height
+    # return:
+    #   out: tar image
+
+    w, h = I_tar.size
+
+    # get back warp matrix
+    i = torch.arange(0, h)
+    j = torch.arange(0, w)
+    ii, jj = torch.meshgrid(i, j)  # i:h,j:w
+    uv = torch.stack([jj, ii], dim=-1).float()  # shape = [h, w, 2]
+    # ones = torch.ones_like(ii)
+    # uv1 = torch.stack([jj, ii, ones], dim=-1).float()  # shape = [h, w, 3]
+
+    p3D = I_tar.image2world(uv) # 2D->3D scale unknow
+
+    depth = height / torch.einsum('...hwi,...i->...hw', p3D, N)
+    depth = depth.clamp(0., 1000.)
+    p3D_grd = depth[:,:,None] * p3D
+    # each camera coordinate to 'query' coordinate
+    p3d_ref = E * p3D_grd  # to sat
+    uv,_ = I_src.world2image(p3d_ref)
+
+
+    # lefttop to center
+    _, h, w = image.shape
+    uv_center = uv - torch.tensor([w // 2, h // 2])  # shape = [h,w,2]
+    # u:south, v: up from center to -1,-1 top left, 1,1 buttom right
+    scale = torch.tensor([w // 2, h // 2])
+    uv_center /= scale
+
+    out = torch.nn.functional.grid_sample(image.unsqueeze(0), uv_center.unsqueeze(0), mode='bilinear',
+                        padding_mode='zeros')
+
+    out = transforms.functional.to_pil_image(out.squeeze(0), mode='RGB')
+    return out
+
 def camera_in_ex(root, camera_model):
     # get camera model
     model_dir = os.path.join(root, "camera-models")
@@ -104,13 +147,33 @@ class _Dataset(Dataset):
         self.right_camera, self.rightC_vehicle = camera_in_ex(self.root, 'mono_right')
         self.rear_camera, self.rearC_vehicle = camera_in_ex(self.root, 'mono_rear')
 
+        if 0: #debug find missing
+            for i in range(self.files.shape[0]):
+                log_folder = os.path.join(self.root, 'undistort', self.files['day'][i])
+                # rear camera
+                name = os.path.join(log_folder, "mono_rear", str(self.files['rear_ts'][i]) + '.png')
+                if not os.path.exists(name):
+                    print('no file: ', name)
+                # left camera
+                name = os.path.join(log_folder, "mono_left", str(self.files['left_ts'][i]) + '.png')
+                if not os.path.exists(name):
+                    print('no file: ', name)
+                # right camera
+                name = os.path.join(log_folder, "mono_right", str(self.files['right_ts'][i]) + '.png')
+                if not os.path.exists(name):
+                    print('no file: ', name)
+                # front camera
+                name = os.path.join(log_folder, "stereo/centre", str(self.files['front_ts'][i]) + '.png')
+                if not os.path.exists(name):
+                    print('no file: ', name)
+
         if 0:  # only 1 item
-            self.file_name = self.file_name[:1]
+            self.files = self.files[:1]
 
         if 0:  # for debug
             # can not random sample, have order in npy files
             if split != 'train':
-                self.file_name = self.file_name[:len(self.file_name)//3]
+                self.files = self.files[:len(self.files)//3]
 
     def __len__(self):
         return len(self.files)
@@ -156,6 +219,8 @@ class _Dataset(Dataset):
             # ground images, rear camera
             query_image_folder = os.path.join(log_folder, "mono_rear")
             name = os.path.join(query_image_folder, str(self.files['rear_ts'][idx])+'.png')
+            if not os.path.exists(name):
+                print("no file ", name)
             with Image.open(name, 'r') as GrdImg:
                 grd = GrdImg.convert('RGB')
                 grd = grd_trans(grd)
@@ -178,6 +243,8 @@ class _Dataset(Dataset):
                 # ground images, side left camera
                 query_image_folder = os.path.join(log_folder, "mono_left")
                 name = os.path.join(query_image_folder, str(self.files['left_ts'][idx]) + '.png')
+                if not os.path.exists(name):
+                    print("no file ", name)
                 with Image.open(name, 'r') as GrdImg:
                     grd = GrdImg.convert('RGB')
                     grd = grd_trans(grd)
@@ -198,6 +265,8 @@ class _Dataset(Dataset):
                 # ground images, side right camera
                 query_image_folder = os.path.join(log_folder, "mono_right")
                 name = os.path.join(query_image_folder, str(self.files['right_ts'][idx]) + '.png')
+                if not os.path.exists(name):
+                    print("no file ", name)
                 with Image.open(name, 'r') as GrdImg:
                     grd = GrdImg.convert('RGB')
                     grd = grd_trans(grd)
@@ -218,6 +287,8 @@ class _Dataset(Dataset):
         # ground images, front color camera
         query_image_folder = os.path.join(log_folder, "stereo", "centre")
         name = os.path.join(query_image_folder, str(self.files['front_ts'][idx]) + '.png')
+        if not os.path.exists(name):
+            print("no file ", name)
         with Image.open(name, 'r') as GrdImg:
             grd = GrdImg.convert('RGB')
             grd = grd_trans(grd)
@@ -245,13 +316,13 @@ class _Dataset(Dataset):
         # query is body, ref is NED
         body2wnd = Pose.from_aa(np.array([self.files['roll'][idx], self.files['pitch'][idx], self.files['yaw'][idx]]),
                                 np.zeros(3)).float()
-        wnd2sat = Pose.from_4x4mat(np.array([[-1,0,0,0],[0,-1,0,0],[0,0,0,0],[0,0,0,1]])).float()
+        wnd2sat = Pose.from_4x4mat(np.array([[-1,0,0,0],[0,-1,0,0],[0,0,1,0],[0,0,0,1]])).float()
         body2sat = wnd2sat@body2wnd
         # body2sat = ned2sat@body2ned
 
         # init and gt pose~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # ramdom shift translation and rotation on yaw
-        YawShiftRange = 15 * np.pi / 180 #error degree 
+        YawShiftRange = 15 * np.pi / 180 #error degree
         yaw = 2 * YawShiftRange * np.random.random() - YawShiftRange
         # R_yaw = torch.tensor([[np.cos(yaw),-np.sin(yaw),0],  [np.sin(yaw),np.cos(yaw),0], [0, 0, 1]])
         TShiftRange = 5 
@@ -344,6 +415,31 @@ class _Dataset(Dataset):
             plt.show()
             print(self.files['front_ts'][idx])
 
+        # debug projection
+        if 0:
+            if self.conf['mul_query'] > 1:
+                query_list = ['query','query_1','query_2','query_3']
+            elif self.conf['mul_query'] > 0:
+                query_list = ['query', 'query_1']
+            else:
+                query_list = ['query']
+            # project ground to sat
+            for q in query_list:
+                E = data['T_q2r_gt']@data[q]['T_w2cam'].inv()
+                N = torch.einsum('...ij,...cj->...ci', data[q]['T_w2cam'].R, data['normal'])
+                tran_sat = homography_trans(data['ref']['image'], data[q]['camera'], data['ref']['camera'], E, N.squeeze(0), data[q]['camera_h'])
+                fig = plt.figure(figsize=plt.figaspect(1.))
+                ax1 = fig.add_subplot(2, 2, 1)
+                ax2 = fig.add_subplot(2, 2, 2)
+                ax3 = fig.add_subplot(2, 2, 3)
+                ax1.imshow(tran_sat)
+                q_img = transforms.functional.to_pil_image(data[q]['image'], mode='RGB')
+                ax2.imshow(q_img)
+                fusion = Image.blend(q_img.convert("RGBA"), tran_sat.convert("RGBA"), alpha=.7)
+                ax3.imshow(fusion)
+                plt.show()
+                print('debug projection')
+
         return data
 
 if __name__ == '__main__':
@@ -355,7 +451,7 @@ if __name__ == '__main__':
         'mul_query': 2 # 0: FL; 1:FL+RR; 2:FL+RR+SL+SR
     }
     dataset = RobotCar(conf)
-    loader = dataset.get_data_loader('train', shuffle=True)  # or 'train' ‘val’ 'test'
+    loader = dataset.get_data_loader('test', shuffle=True)  # or 'train' ‘val’ 'test'
 
     for i, data in zip(range(1000), loader):
         print(i)

@@ -8,8 +8,8 @@ import os
 import math
 from scipy.io import savemat
 
-Ford_dataset = True
-exp = 'ford'
+Dataset = 'robotcar' #'ford' #'kitti'
+exp = 'robotcar'#'ford_pe'
 
 from pixloc.pixlib.utils.tensor import batch_to_device, map_tensor
 from pixloc.pixlib.utils.tools import set_seed
@@ -23,16 +23,21 @@ data_conf = {
     'train_batch_size': 1,
     'test_batch_size': 1,
     'num_workers': 0,
-    'mul_query': 0,
+    'mul_query': 2,
 }
 
 
-if Ford_dataset:
+if Dataset == 'ford':
     from pixloc.pixlib.datasets.ford import FordAV
     dataset = FordAV(data_conf)
-else:
+elif Dataset == 'kitti':
     from pixloc.pixlib.datasets.kitti import Kitti
     dataset = Kitti(data_conf)
+elif Dataset == 'robotcar':
+    from pixloc.pixlib.datasets.robotcar import RobotCar
+    dataset = RobotCar(data_conf)
+else:
+    print("not support dataset")
 
 torch.set_grad_enabled(False);
 mpl.rcParams['image.interpolation'] = 'bilinear'
@@ -376,7 +381,7 @@ def test(refiner, test_loader):
 
     return
 
-if __name__ == '__main__':
+if __name__ == 'evaluation':  #''__main__':
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
