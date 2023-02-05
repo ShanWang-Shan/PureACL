@@ -309,7 +309,7 @@ class _Dataset(Dataset):
         # calculate road Normal for key point from camera 2D to 3D, in query coordinate
         normal = torch.tensor([0.,0.,1]) # down, z axis of body coordinate
         # ignore roll angle
-        ignore_roll = Pose.from_aa(np.array([self.files['roll'][idx], 0, 0]), np.zeros(3)).float()
+        ignore_roll = Pose.from_aa(np.array([-self.files['roll'][idx], 0, 0]), np.zeros(3)).float()
         normal = ignore_roll * normal
 
         # gt pose~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -432,13 +432,29 @@ class _Dataset(Dataset):
                 ax1 = fig.add_subplot(2, 2, 1)
                 ax2 = fig.add_subplot(2, 2, 2)
                 ax3 = fig.add_subplot(2, 2, 3)
+                ax4 = fig.add_subplot(2, 2, 4)
                 ax1.imshow(tran_sat)
                 q_img = transforms.functional.to_pil_image(data[q]['image'], mode='RGB')
                 ax2.imshow(q_img)
                 fusion = Image.blend(q_img.convert("RGBA"), tran_sat.convert("RGBA"), alpha=.7)
-                ax3.imshow(fusion)
+                ax4.imshow(fusion)
+                sat_img = transforms.functional.to_pil_image(data['ref']['image'], mode='RGB')
+                ax3.imshow(sat_img)
+                # camera gt position
+                origin = torch.zeros(3)
+                origin_2d_gt, _ = data['ref']['camera'].world2image(data['T_q2r_gt'] * origin)
+                direct = torch.tensor([0, 0, 20.])
+                direct = data[q]['T_w2cam'].inv() * direct
+                direct_2d_gt, _ = data['ref']['camera'].world2image(data['T_q2r_gt'] * direct)
+                origin_2d_gt = origin_2d_gt.squeeze(0)
+                direct_2d_gt = direct_2d_gt.squeeze(0)
+                # plot the gt direction of the body frame
+                ax3.scatter(x=origin_2d_gt[0], y=origin_2d_gt[1], c='r', s=5)
+                ax3.quiver(origin_2d_gt[0], origin_2d_gt[1], direct_2d_gt[0] - origin_2d_gt[0],
+                           origin_2d_gt[1] - direct_2d_gt[1], color=['r'], scale=None)
+
                 plt.show()
-                print('debug projection')
+                print(name, q)
 
         return data
 
@@ -451,7 +467,7 @@ if __name__ == '__main__':
         'mul_query': 2 # 0: FL; 1:FL+RR; 2:FL+RR+SL+SR
     }
     dataset = RobotCar(conf)
-    loader = dataset.get_data_loader('test', shuffle=True)  # or 'train' ‘val’ 'test'
+    loader = dataset.get_data_loader('test', shuffle=False)  # or 'train' ‘val’ 'test'
 
     for i, data in zip(range(1000), loader):
         print(i)

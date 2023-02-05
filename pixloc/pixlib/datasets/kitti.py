@@ -200,7 +200,7 @@ class _Dataset(Dataset):
             model='PINHOLE', params=camera_para,
             width=int(grd_process_size[1]), height=int(grd_process_size[0])))
         imu2camera_left = Pose.from_4x4mat(camera_ex) @ imu2camera
-        # same coordinate with ford body for better generability: IMU pose, x: forword, y:right, z:down
+        # same coordinate with ford body for better generability: IMU pose, x: forword, y:left, z:up -> x: forword, y:right, z:down
         body2imu = Pose.from_4x4mat(
             np.array([[1., 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]]))  # no shift, x->x, y->-y, z->-z
         grd_image = {
@@ -242,8 +242,8 @@ class _Dataset(Dataset):
         x_sg = int(x_sg / meter_per_pixel)
         y_sg = int(-y_sg / meter_per_pixel)
         # query to satellite R
-        grd2sat_R = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])  # grd z->-sat z; grd x->sat x, grd y->-sat y
-        grd2sat = Pose.from_Rt(grd2sat_R, np.array([0.,0,0])) #np.array([x_sg,y_sg,0]) shift in K
+        ENU2sat_R = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])  # up->-sat z; east->sat x, north->-sat y
+        ENU2sat = Pose.from_Rt(ENU2sat_R, np.array([0.,0,0])) #np.array([x_sg,y_sg,0]) shift in K
 
         # sat
         camera = Camera.from_colmap(dict(
@@ -260,12 +260,12 @@ class _Dataset(Dataset):
         # calculate road Normal for key point from camera 2D to 3D, in query coordinate
         normal = torch.tensor([0.,0, 1]) # down, z axis of body coordinate
         # ignore roll angle, point to sea level,  only left pitch
-        ignore_roll = Pose.from_aa(np.array([roll, 0, 0]), np.zeros(3)).float()
+        ignore_roll = Pose.from_aa(np.array([-roll, 0, 0]), np.zeros(3)).float()
         normal = ignore_roll * normal
 
-        imu2grd = Pose.from_aa(np.array([roll, -pitch, heading]), np.zeros(3)) # grd_x:east, grd_y:north, grd_z:up
+        imu2ENU = Pose.from_aa(np.array([roll, -pitch, heading]), np.zeros(3)) # grd_x:east, grd_y:north, grd_z:up
         # grd2imu = Pose.from_aa(np.array([-roll, pitch, -heading]), np.zeros(3)) # grd_x:east, grd_y:north, grd_z:up
-        q2r_gt = grd2sat@imu2grd@body2imu
+        q2r_gt = ENU2sat@imu2ENU@body2imu # body -> sat
 
         # ramdom shift translation and rotation on yaw/heading
         YawShiftRange = 15 * np.pi / 180  # in 15 degree
