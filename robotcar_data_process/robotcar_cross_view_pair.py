@@ -7,8 +7,10 @@ import numpy as np
 from sklearn.neighbors import NearestNeighbors
 import csv
 
-root = "/data/robotcar/"
+root = "/data/dataset/robotcar/"
 zoom = 18
+Camera_MAX_GAP = 20000 # 20ms
+RTK_MAX_GAP = 10000 # 10ms
 
 def read_numpy(root_folder, file_name):
     with open(os.path.join(root_folder, file_name), 'rb') as f:
@@ -28,11 +30,35 @@ def read_timestamp(folder, file_name):
                 timestamp.append(int(p[0]))
     return np.array(timestamp)
 
+def get_timestamp(folder):
+    list = os.listdir(folder)
+    timestamp = []
+    for item in list:
+        ts = item.split('.')
+        if len(ts[0]) >= 16:
+            timestamp.append(int(ts[0]))
+    return np.array(timestamp)
+
+
 def read_csv(root_folder, file_name):
     with open(os.path.join(root_folder, file_name), newline='') as f:
         reader = csv.reader(f)
         cur_file = list(reader)
     return cur_file
+
+def interpolate_poses(rtk_timestamp, rtk_info, front_ts, idx):
+    if front_ts == rtk_timestamp[idx]:
+        return rtk_info[idx]
+    elif front_ts < rtk_timestamp[idx]:
+        upper_idx = idx
+        lower_idx = idx-1
+    else:
+        upper_idx = idx+1
+        lower_idx = idx
+    fractions = (front_ts - rtk_timestamp[lower_idx]) / (rtk_timestamp[upper_idx] - rtk_timestamp[lower_idx])
+    positions_interp = (1 - fractions) * np.array(rtk_info[lower_idx][:3]) + fractions * np.array(rtk_info[upper_idx][:3])
+    return np.hstack((positions_interp,rtk_info[idx][3:]))
+
 
 # satellite images gps
 gps_center_file = os.path.join(root, 'satellite_gps_center.npy')
@@ -52,25 +78,26 @@ neigh.fit(ENU_coords_satellite)
 # query image gps
 # read form txt files
 old_log = None
-for split in ('train', 'val', 'test'):
+for split in ('train', 'val','test'):
     lines = []
     front_files = np.loadtxt(os.path.join(root, "split", split + '.txt'), dtype="str")
     for front_dir in front_files:
         day_ts = front_dir.split("/")
-        # debug
-        if day_ts[0] != '2015-06-26-08-09-43':
-            continue
 
         log_dir = os.path.join(root, day_ts[0])
         if log_dir != old_log:
             # mono image timestamp
-            left_timestamp = read_timestamp(log_dir, 'mono_left.timestamps')
+            #left_timestamp = read_timestamp(log_dir, 'mono_left.timestamps')
+            # from image list instead of timestamps, not all timestamps has png
+            left_timestamp = get_timestamp(os.path.join(log_dir, 'mono_left'))
             neigh_left = NearestNeighbors(n_neighbors=1)
             neigh_left.fit(left_timestamp.reshape(-1,1))
-            right_timestamp = read_timestamp(log_dir, 'mono_right.timestamps')
+            #right_timestamp = read_timestamp(log_dir, 'mono_right.timestamps')
+            right_timestamp = get_timestamp(os.path.join(log_dir, 'mono_right'))
             neigh_right = NearestNeighbors(n_neighbors=1)
             neigh_right.fit(right_timestamp.reshape(-1,1))
-            rear_timestamp = read_timestamp(log_dir, 'mono_rear.timestamps')
+            #rear_timestamp = read_timestamp(log_dir, 'mono_rear.timestamps')
+            rear_timestamp = get_timestamp(os.path.join(log_dir, 'mono_rear'))
             neigh_rear = NearestNeighbors(n_neighbors=1)
             neigh_rear.fit(rear_timestamp.reshape(-1,1))
 
@@ -94,18 +121,34 @@ for split in ('train', 'val', 'test'):
         ts_key = np.array([[front_ts]])
         _, indices = neigh_left.kneighbors(ts_key, return_distance=True)
         indices = indices.ravel()[0]
+        #print(abs(front_ts - left_timestamp[indices]))
+        if abs(front_ts - left_timestamp[indices]) > Camera_MAX_GAP:
+            continue
         left_ts = left_timestamp[indices]
         _, indices = neigh_right.kneighbors(ts_key, return_distance=True)
         indices = indices.ravel()[0]
+        #print(abs(front_ts - right_timestamp[indices]))
+        if abs(front_ts - right_timestamp[indices]) > Camera_MAX_GAP:
+            continue
         right_ts = right_timestamp[indices]
         _, indices = neigh_rear.kneighbors(ts_key, return_distance=True)
         indices = indices.ravel()[0]
+        #print(abs(front_ts - rear_timestamp[indices]))
+        if abs(front_ts - rear_timestamp[indices]) > Camera_MAX_GAP:
+            continue
         rear_ts = rear_timestamp[indices]
 
         # find nearest gt
         _, indices = neigh_rtk.kneighbors(ts_key, return_distance=True)
         indices = indices.ravel()[0]
-        pose_gt = rtk_info[indices]
+        # near by
+        if abs(front_ts - rtk_timestamp[indices]) > RTK_MAX_GAP:
+            continue
+        # interpolate_pose
+        if indices == 0 or indices == len(rtk_timestamp)-1:
+            continue
+        pose_gt = interpolate_poses(rtk_timestamp, rtk_info, front_ts, indices)
+        # pose_gt = rtk_info[indices]
 
         # get ENU of query
         x, y, z = gps_func.GeodeticToEcef(pose_gt[0] * np.pi / 180.0, pose_gt[1] * np.pi / 180.0, pose_gt[2])
