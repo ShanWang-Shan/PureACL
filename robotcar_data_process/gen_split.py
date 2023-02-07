@@ -23,6 +23,7 @@ for name, dataset in zip(('train.txt', 'val.txt', 'test.txt'),(train_dataset, va
     dataset_filelist = []
     for folder in dataset:
         file_list = os.listdir(os.path.join(root,folder,'stereo/centre'))
+        file_list.sort()
         file_list = [os.path.join(folder,'stereo/centre', file) for file in file_list]
         if len(dataset_filelist) == 0:
             # remove first 200 frames

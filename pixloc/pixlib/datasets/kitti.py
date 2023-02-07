@@ -260,7 +260,7 @@ class _Dataset(Dataset):
         # calculate road Normal for key point from camera 2D to 3D, in query coordinate
         normal = torch.tensor([0.,0, 1]) # down, z axis of body coordinate
         # ignore roll angle, point to sea level,  only left pitch
-        ignore_roll = Pose.from_aa(np.array([-roll, 0, 0]), np.zeros(3)).float()
+        ignore_roll = Pose.from_aa(np.array([roll, 0, 0]), np.zeros(3)).float()
         normal = ignore_roll * normal
 
         imu2ENU = Pose.from_aa(np.array([roll, -pitch, heading]), np.zeros(3)) # grd_x:east, grd_y:north, grd_z:up

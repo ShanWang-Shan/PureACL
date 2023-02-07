@@ -350,7 +350,7 @@ class _Dataset(Dataset):
         # calculate road Normal for key point from camera 2D to 3D, in query coordinate
         normal = torch.tensor([0.,0, 1]) # down, z axis of body coordinate
         # ignore roll angle
-        ignore_roll = Pose.from_aa(np.array([-roll, 0, 0]), np.zeros(3)).float()
+        ignore_roll = Pose.from_aa(np.array([roll, 0, 0]), np.zeros(3)).float()
         normal = ignore_roll * normal
 
         # gt pose~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

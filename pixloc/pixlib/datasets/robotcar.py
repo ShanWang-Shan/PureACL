@@ -73,10 +73,9 @@ def homography_trans(image, I_tar, I_src, E, N, height):
 
 
     # lefttop to center
-    _, h, w = image.shape
-    uv_center = uv - torch.tensor([w // 2, h // 2])  # shape = [h,w,2]
+    uv_center = uv - I_src.size//2 #I_src.c  # shape = [h,w,2]
     # u:south, v: up from center to -1,-1 top left, 1,1 buttom right
-    scale = torch.tensor([w // 2, h // 2])
+    scale = I_src.size//2 #torch.max(I_src.size - I_src.c, I_src.c)
     uv_center /= scale
 
     out = torch.nn.functional.grid_sample(image.unsqueeze(0), uv_center.unsqueeze(0), mode='bilinear',
@@ -171,9 +170,7 @@ class _Dataset(Dataset):
             self.files = self.files[:1]
 
         if 0:  # for debug
-            # can not random sample, have order in npy files
-            if split != 'train':
-                self.files = self.files[:len(self.files)//3]
+            self.files = self.files[:len(self.files)//3]
 
     def __len__(self):
         return len(self.files)
@@ -309,7 +306,7 @@ class _Dataset(Dataset):
         # calculate road Normal for key point from camera 2D to 3D, in query coordinate
         normal = torch.tensor([0.,0.,1]) # down, z axis of body coordinate
         # ignore roll angle
-        ignore_roll = Pose.from_aa(np.array([-self.files['roll'][idx], 0, 0]), np.zeros(3)).float()
+        ignore_roll = Pose.from_aa(np.array([self.files['roll'][idx], 0, 0]), np.zeros(3)).float()
         normal = ignore_roll * normal
 
         # gt pose~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -416,13 +413,14 @@ class _Dataset(Dataset):
             print(self.files['front_ts'][idx])
 
         # debug projection
-        if 0:
+        if 0:#idx % 50 == 0:
             if self.conf['mul_query'] > 1:
                 query_list = ['query','query_1','query_2','query_3']
             elif self.conf['mul_query'] > 0:
                 query_list = ['query', 'query_1']
             else:
                 query_list = ['query']
+            query_list = ['query']
             # project ground to sat
             for q in query_list:
                 E = data['T_q2r_gt']@data[q]['T_w2cam'].inv()
@@ -436,7 +434,7 @@ class _Dataset(Dataset):
                 ax1.imshow(tran_sat)
                 q_img = transforms.functional.to_pil_image(data[q]['image'], mode='RGB')
                 ax2.imshow(q_img)
-                fusion = Image.blend(q_img.convert("RGBA"), tran_sat.convert("RGBA"), alpha=.7)
+                fusion = Image.blend(q_img.convert("RGBA"), tran_sat.convert("RGBA"), alpha=.6)
                 ax4.imshow(fusion)
                 sat_img = transforms.functional.to_pil_image(data['ref']['image'], mode='RGB')
                 ax3.imshow(sat_img)
@@ -467,9 +465,12 @@ if __name__ == '__main__':
         'mul_query': 2 # 0: FL; 1:FL+RR; 2:FL+RR+SL+SR
     }
     dataset = RobotCar(conf)
-    loader = dataset.get_data_loader('test', shuffle=False)  # or 'train' ‘val’ 'test'
+    loader = dataset.get_data_loader('train', shuffle=False)  # or 'train' ‘val’ 'test'
 
-    for i, data in zip(range(1000), loader):
+    for i, data in zip(range(8000), loader):
         print(i)
+
+    # for i, data in zip(range(1000), loader):
+    #     print(i)
 
 
