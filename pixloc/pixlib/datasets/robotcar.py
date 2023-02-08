@@ -14,11 +14,8 @@ from torchvision import transforms
 import torch
 from matplotlib import pyplot as plt
 import robotcar_data_process.robotcar_gps_coord_func as gps_func
-import cv2
-from glob import glob
-from pixloc.pixlib.datasets.transformations import quaternion_matrix
+from pixloc.pixlib.datasets.transformations import euler_matrix
 from pixloc.pixlib.geometry import Camera, Pose
-import yaml
 
 from robotcar_data_process.camera_model import CameraModel
 from robotcar_data_process.transform import build_se3_transform
@@ -306,13 +303,12 @@ class _Dataset(Dataset):
         # calculate road Normal for key point from camera 2D to 3D, in query coordinate
         normal = torch.tensor([0.,0.,1]) # down, z axis of body coordinate
         # ignore roll angle
-        ignore_roll = Pose.from_aa(np.array([self.files['roll'][idx], 0, 0]), np.zeros(3)).float()
+        ignore_roll = Pose.from_4x4mat(euler_matrix(-self.files['roll'][idx], 0, 0)).float()
         normal = ignore_roll * normal
 
         # gt pose~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # query is body, ref is NED
-        body2wnd = Pose.from_aa(np.array([self.files['roll'][idx], self.files['pitch'][idx], self.files['yaw'][idx]]),
-                                np.zeros(3)).float()
+        body2wnd = Pose.from_4x4mat(euler_matrix(self.files['roll'][idx], self.files['pitch'][idx], self.files['yaw'][idx])).float()
         wnd2sat = Pose.from_4x4mat(np.array([[-1,0,0,0],[0,-1,0,0],[0,0,1,0],[0,0,0,1]])).float()
         body2sat = wnd2sat@body2wnd
         # body2sat = ned2sat@body2ned
@@ -321,14 +317,14 @@ class _Dataset(Dataset):
         # ramdom shift translation and rotation on yaw
         YawShiftRange = 15 * np.pi / 180 #error degree
         yaw = 2 * YawShiftRange * np.random.random() - YawShiftRange
-        # R_yaw = torch.tensor([[np.cos(yaw),-np.sin(yaw),0],  [np.sin(yaw),np.cos(yaw),0], [0, 0, 1]])
         TShiftRange = 5 
         T = 2 * TShiftRange * np.random.rand((3)) - TShiftRange
         T[2] = 0  # no shift on height
         #print(f'in dataset: yaw:{yaw/np.pi*180},t:{T}')
 
         # add random yaw and t to init pose
-        init_shift = Pose.from_aa(np.array([0, 0, yaw]), T).float()
+        R_yaw = euler_matrix(0, 0, yaw)
+        init_shift = Pose.from_Rt(R_yaw[:3,:3], T).float()
         body2sat_init = init_shift@body2sat
 
         data = {

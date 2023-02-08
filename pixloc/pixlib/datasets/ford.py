@@ -18,7 +18,7 @@ import ford_data_process.gps_coord_func as gps_func
 import random
 import cv2
 from glob import glob
-from pixloc.pixlib.datasets.transformations import quaternion_matrix
+from pixloc.pixlib.datasets.transformations import quaternion_matrix, euler_matrix
 from pixloc.pixlib.geometry import Camera, Pose
 import open3d as o3d
 import yaml
@@ -46,6 +46,48 @@ ToTensor = transforms.Compose([
 grd_trans = transforms.Compose([
     transforms.Resize(query_size),
     transforms.ToTensor()])
+
+def homography_trans(image, I_tar, I_src, E, N, height):
+    # inputs:
+    #   image: src image
+    #   I_tar,I_src:camera
+    #   E: pose
+    #   N: ground normal
+    #   height: ground height
+    # return:
+    #   out: tar image
+
+    w, h = I_tar.size
+
+    # get back warp matrix
+    i = torch.arange(0, h)
+    j = torch.arange(0, w)
+    ii, jj = torch.meshgrid(i, j)  # i:h,j:w
+    uv = torch.stack([jj, ii], dim=-1).float()  # shape = [h, w, 2]
+    # ones = torch.ones_like(ii)
+    # uv1 = torch.stack([jj, ii, ones], dim=-1).float()  # shape = [h, w, 3]
+
+    p3D = I_tar.image2world(uv) # 2D->3D scale unknow
+
+    depth = height / torch.einsum('...hwi,...i->...hw', p3D, N)
+    depth = depth.clamp(0., 1000.)
+    p3D_grd = depth[:,:,None] * p3D
+    # each camera coordinate to 'query' coordinate
+    p3d_ref = E * p3D_grd  # to sat
+    uv,_ = I_src.world2image(p3d_ref)
+
+
+    # lefttop to center
+    uv_center = uv - I_src.size//2 #I_src.c  # shape = [h,w,2]
+    # u:south, v: up from center to -1,-1 top left, 1,1 buttom right
+    scale = I_src.size//2 #torch.max(I_src.size - I_src.c, I_src.c)
+    uv_center /= scale
+
+    out = torch.nn.functional.grid_sample(image.unsqueeze(0), uv_center.unsqueeze(0), mode='bilinear',
+                        padding_mode='zeros')
+
+    out = transforms.functional.to_pil_image(out.squeeze(0), mode='RGB')
+    return out
 
 def read_calib_yaml(calib_folder, file_name):
     with open(os.path.join(calib_folder, file_name), 'r') as stream:
@@ -350,12 +392,12 @@ class _Dataset(Dataset):
         # calculate road Normal for key point from camera 2D to 3D, in query coordinate
         normal = torch.tensor([0.,0, 1]) # down, z axis of body coordinate
         # ignore roll angle
-        ignore_roll = Pose.from_aa(np.array([roll, 0, 0]), np.zeros(3)).float()
+        ignore_roll = Pose.from_4x4mat(euler_matrix(-roll, 0, 0)).float()
         normal = ignore_roll * normal
 
         # gt pose~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # query is body, ref is NED
-        body2ned = Pose.from_aa(np.array([roll, pitch, heading]), np.zeros(3)).float()
+        body2ned = Pose.from_4x4mat(euler_matrix(roll, pitch, heading)).float()
         body2sat = ned2sat@body2ned
 
         # init and gt pose~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -369,8 +411,8 @@ class _Dataset(Dataset):
         #print(f'in dataset: yaw:{yaw/np.pi*180},t:{T}')
 
         # add random yaw and t to init pose
-        # init_shift = Pose.from_Rt(R_yaw,T).float()
-        init_shift = Pose.from_aa(np.array([0,0,yaw]), T).float()
+        R_yaw = euler_matrix(0, 0, yaw)
+        init_shift = Pose.from_Rt(R_yaw[:3,:3], T).float()
         body2sat_init = init_shift@body2sat
 
         data = {
@@ -454,6 +496,48 @@ class _Dataset(Dataset):
             plt.show()
             print(self.file_name[idx][:-1])
 
+        # debug projection
+        if 1:#idx % 50 == 0:
+            if self.conf['mul_query'] > 1:
+                query_list = ['query','query_1','query_2','query_3']
+            elif self.conf['mul_query'] > 0:
+                query_list = ['query', 'query_1']
+            else:
+                query_list = ['query']
+            # query_list = ['query']
+            # project ground to sat
+            for q in query_list:
+                E = data['T_q2r_gt']@data[q]['T_w2cam'].inv()
+                N = torch.einsum('...ij,...cj->...ci', data[q]['T_w2cam'].R, data['normal'])
+                tran_sat = homography_trans(data['ref']['image'], data[q]['camera'], data['ref']['camera'], E, N.squeeze(0), data[q]['camera_h'])
+                fig = plt.figure(figsize=plt.figaspect(1.))
+                ax1 = fig.add_subplot(2, 2, 1)
+                ax2 = fig.add_subplot(2, 2, 2)
+                ax3 = fig.add_subplot(2, 2, 3)
+                ax4 = fig.add_subplot(2, 2, 4)
+                ax1.imshow(tran_sat)
+                q_img = transforms.functional.to_pil_image(data[q]['image'], mode='RGB')
+                ax2.imshow(q_img)
+                fusion = Image.blend(q_img.convert("RGBA"), tran_sat.convert("RGBA"), alpha=.6)
+                ax4.imshow(fusion)
+                sat_img = transforms.functional.to_pil_image(data['ref']['image'], mode='RGB')
+                ax3.imshow(sat_img)
+                # camera gt position
+                origin = torch.zeros(3)
+                origin_2d_gt, _ = data['ref']['camera'].world2image(data['T_q2r_gt'] * origin)
+                direct = torch.tensor([0, 0, 20.])
+                direct = data[q]['T_w2cam'].inv() * direct
+                direct_2d_gt, _ = data['ref']['camera'].world2image(data['T_q2r_gt'] * direct)
+                origin_2d_gt = origin_2d_gt.squeeze(0)
+                direct_2d_gt = direct_2d_gt.squeeze(0)
+                # plot the gt direction of the body frame
+                ax3.scatter(x=origin_2d_gt[0], y=origin_2d_gt[1], c='r', s=5)
+                ax3.quiver(origin_2d_gt[0], origin_2d_gt[1], direct_2d_gt[0] - origin_2d_gt[0],
+                           origin_2d_gt[1] - direct_2d_gt[1], color=['r'], scale=None)
+
+                plt.show()
+                print(name, q)
+
         return data
 
 if __name__ == '__main__':
@@ -465,7 +549,7 @@ if __name__ == '__main__':
         'mul_query': 2 # 0: FL; 1:FL+RR; 2:FL+RR+SL+SR
     }
     dataset = FordAV(conf)
-    loader = dataset.get_data_loader('train', shuffle=True)  # or 'train' ‘val’
+    loader = dataset.get_data_loader('train', shuffle=False)  # or 'train' ‘val’
 
     for i, data in zip(range(1000), loader):
         print(i)

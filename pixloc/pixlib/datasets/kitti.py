@@ -17,9 +17,7 @@ from matplotlib import pyplot as plt
 # from sklearn.neighbors import NearestNeighbors
 import kitti_data_process.Kitti_gps_coord_func as gps_func
 import random
-import cv2
-from glob import glob
-from pixloc.pixlib.datasets.transformations import euler_from_matrix, euler_matrix
+from pixloc.pixlib.datasets.transformations import euler_matrix
 from pixloc.pixlib.geometry import Camera, Pose
 
 satmap_zoom = 18 
@@ -38,6 +36,48 @@ satellite_ori_size = 1280
 
 ToTensor = transforms.Compose([
     transforms.ToTensor()])
+
+def homography_trans(image, I_tar, I_src, E, N, height):
+    # inputs:
+    #   image: src image
+    #   I_tar,I_src:camera
+    #   E: pose
+    #   N: ground normal
+    #   height: ground height
+    # return:
+    #   out: tar image
+
+    w, h = I_tar.size
+
+    # get back warp matrix
+    i = torch.arange(0, h)
+    j = torch.arange(0, w)
+    ii, jj = torch.meshgrid(i, j)  # i:h,j:w
+    uv = torch.stack([jj, ii], dim=-1).float()  # shape = [h, w, 2]
+    # ones = torch.ones_like(ii)
+    # uv1 = torch.stack([jj, ii, ones], dim=-1).float()  # shape = [h, w, 3]
+
+    p3D = I_tar.image2world(uv) # 2D->3D scale unknow
+
+    depth = height / torch.einsum('...hwi,...i->...hw', p3D, N)
+    depth = depth.clamp(0., 1000.)
+    p3D_grd = depth[:,:,None] * p3D
+    # each camera coordinate to 'query' coordinate
+    p3d_ref = E * p3D_grd  # to sat
+    uv,_ = I_src.world2image(p3d_ref)
+
+
+    # lefttop to center
+    uv_center = uv - I_src.size//2 #I_src.c  # shape = [h,w,2]
+    # u:south, v: up from center to -1,-1 top left, 1,1 buttom right
+    scale = I_src.size//2 #torch.max(I_src.size - I_src.c, I_src.c)
+    uv_center /= scale
+
+    out = torch.nn.functional.grid_sample(image.unsqueeze(0), uv_center.unsqueeze(0), mode='bilinear',
+                        padding_mode='zeros')
+
+    out = transforms.functional.to_pil_image(out.squeeze(0), mode='RGB')
+    return out
 
 class Kitti(BaseDataset):
     default_conf = {
@@ -260,11 +300,10 @@ class _Dataset(Dataset):
         # calculate road Normal for key point from camera 2D to 3D, in query coordinate
         normal = torch.tensor([0.,0, 1]) # down, z axis of body coordinate
         # ignore roll angle, point to sea level,  only left pitch
-        ignore_roll = Pose.from_aa(np.array([roll, 0, 0]), np.zeros(3)).float()
+        ignore_roll = Pose.from_4x4mat(euler_matrix(-roll, 0, 0)).float()
         normal = ignore_roll * normal
 
-        imu2ENU = Pose.from_aa(np.array([roll, -pitch, heading]), np.zeros(3)) # grd_x:east, grd_y:north, grd_z:up
-        # grd2imu = Pose.from_aa(np.array([-roll, pitch, -heading]), np.zeros(3)) # grd_x:east, grd_y:north, grd_z:up
+        imu2ENU = Pose.from_4x4mat(euler_matrix(roll, pitch, heading))# grd_x:east, grd_y:north, grd_z:up
         q2r_gt = ENU2sat@imu2ENU@body2imu # body -> sat
 
         # ramdom shift translation and rotation on yaw/heading
@@ -276,7 +315,8 @@ class _Dataset(Dataset):
         T[2] = 0  # no shift on height
 
         # shift = Pose.from_Rt(R_yaw,T)
-        shift = Pose.from_aa(np.array([0, 0, yaw]), T)
+        R_yaw = euler_matrix(0, 0, yaw)
+        shift = Pose.from_Rt(R_yaw[:3,:3], T)
         q2r_init = shift @ q2r_gt
 
         # scene
@@ -292,7 +332,7 @@ class _Dataset(Dataset):
             data['query_1'] = grd_image_r
 
         # debug
-        if 1:
+        if 0:
             fig = plt.figure(figsize=plt.figaspect(0.5))
             ax1 = fig.add_subplot(1, 2, 1)
             ax2 = fig.add_subplot(1, 2, 2)
@@ -336,6 +376,45 @@ class _Dataset(Dataset):
             plt.show()
             print(idx,file_name, pitch, roll)
 
+        # debug projection
+        if 0:#idx % 50 == 0:
+            if self.conf['mul_query'] > 0:
+                query_list = ['query', 'query_1']
+            else:
+                query_list = ['query']
+            # project ground to sat
+            for q in query_list:
+                E = data['T_q2r_gt']@data[q]['T_w2cam'].inv()
+                N = torch.einsum('...ij,...cj->...ci', data[q]['T_w2cam'].R, data['normal'])
+                tran_sat = homography_trans(data['ref']['image'], data[q]['camera'], data['ref']['camera'], E, N.squeeze(0), data[q]['camera_h'])
+                fig = plt.figure(figsize=plt.figaspect(1.))
+                ax1 = fig.add_subplot(2, 2, 1)
+                ax2 = fig.add_subplot(2, 2, 2)
+                ax3 = fig.add_subplot(2, 2, 3)
+                ax4 = fig.add_subplot(2, 2, 4)
+                ax1.imshow(tran_sat)
+                q_img = transforms.functional.to_pil_image(data[q]['image'], mode='RGB')
+                ax2.imshow(q_img)
+                fusion = Image.blend(q_img.convert("RGBA"), tran_sat.convert("RGBA"), alpha=.6)
+                ax4.imshow(fusion)
+                sat_img = transforms.functional.to_pil_image(data['ref']['image'], mode='RGB')
+                ax3.imshow(sat_img)
+                # camera gt position
+                origin = torch.zeros(3)
+                origin_2d_gt, _ = data['ref']['camera'].world2image(data['T_q2r_gt'] * origin)
+                direct = torch.tensor([0, 0, 20.])
+                direct = data[q]['T_w2cam'].inv() * direct
+                direct_2d_gt, _ = data['ref']['camera'].world2image(data['T_q2r_gt'] * direct)
+                origin_2d_gt = origin_2d_gt.squeeze(0)
+                direct_2d_gt = direct_2d_gt.squeeze(0)
+                # plot the gt direction of the body frame
+                ax3.scatter(x=origin_2d_gt[0], y=origin_2d_gt[1], c='r', s=5)
+                ax3.quiver(origin_2d_gt[0], origin_2d_gt[1], direct_2d_gt[0] - origin_2d_gt[0],
+                           origin_2d_gt[1] - direct_2d_gt[1], color=['r'], scale=None)
+
+                plt.show()
+                print(left_img_name, q)
+
         return data
 
 if __name__ == '__main__':
@@ -344,12 +423,12 @@ if __name__ == '__main__':
         'dataset_dir': '/home/shan/Dataset/Kitti', #'/data/dataset/Kitti',  # "/home/shan/data/Kitti"
         'batch_size': 1,
         'num_workers': 0,
-        'mul_query': True
+        'mul_query': False
     }
     dataset = Kitti(conf)
-    loader = dataset.get_data_loader('train', shuffle=True)  # or 'train' ‘val’
+    loader = dataset.get_data_loader('test', shuffle=True)  # or 'train' ‘val’
 
-    for _, data in zip(range(8), loader):
-        print(data)
+    for i, data in zip(range(1000), loader):
+        print(i)
 
 
