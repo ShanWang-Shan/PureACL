@@ -51,6 +51,7 @@ def homography_trans(image_ref, image_q, I_ref, I_q, E, height, N_q):
     p_q = I_q.image2world(uv)
     # depth * p3d_grd_key @ Normal = grd_plane_height -> depth = grd_plane_height/(p3d_grd_key @ Normal)
     depth = height / torch.einsum('hwi, i->hw', p_q, N_q)
+    depth = depth.clamp(0., 1000.)
     p_q = depth.unsqueeze(-1) * p_q
     p_ref = E*p_q # shape = [h,w,3]
     uv, _ = I_ref.world2image(p_ref)
@@ -73,8 +74,8 @@ def homography_trans(image_ref, image_q, I_ref, I_q, E, height, N_q):
     image_ori_q = transforms.functional.to_pil_image(image_q, mode='RGB')
     image_ori_q = np.array(image_ori_q)
     # ignore up 50%
-    image_ori_q[:int(h*0.65)] = 0
-    out_image[:int(h*0.65)] = 0
+    # image_ori_q[:int(h*0.65)] = 0
+    # out_image[:int(h*0.65)] = 0
     ax1.imshow(image_ori_q)
     ax2.imshow(out_image)
     plt.show()
@@ -182,6 +183,7 @@ class TwoViewRefiner(BaseModel):
             normal = normal.squeeze(1)
             # depth * p3d_grd_key @ Normal = grd_plane_height -> depth = grd_plane_height/(p3d_grd_key @ Normal)
             depth = data[q]['camera_h'][:,None] / torch.einsum('...ni,...i->...n', p3d_grd_key, normal)
+            depth = depth.clamp(0., 1000.)
             p3d_grd_key = depth.unsqueeze(-1) * p3d_grd_key
             # each camera coordinate to 'query' coordinate
             p3d_grd_key = data[q]['T_w2cam'].inv()*p3d_grd_key # camera to query
