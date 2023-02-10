@@ -421,7 +421,7 @@ class _Dataset(Dataset):
             'T_q2r_init': body2sat_init,
             'T_q2r_gt': body2sat,
             'normal': normal,
-            'grd_ratio': torch.tensor(0.65)
+            #'grd_ratio': torch.tensor(0.65)
         }
         if self.conf['mul_query'] > 0:
             data['query_1'] = RR_image

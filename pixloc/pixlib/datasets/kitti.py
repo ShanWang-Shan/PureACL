@@ -326,7 +326,7 @@ class _Dataset(Dataset):
             'T_q2r_init': q2r_init.float(),
             'T_q2r_gt': q2r_gt.float(),
             'normal': normal.float(),
-            'grd_ratio': torch.tensor(0.6)
+            #'grd_ratio': torch.tensor(0.6)
         }
         if self.conf['mul_query']:
             data['query_1'] = grd_image_r

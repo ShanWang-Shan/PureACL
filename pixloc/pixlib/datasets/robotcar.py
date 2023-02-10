@@ -300,6 +300,7 @@ class _Dataset(Dataset):
             'camera_h': torch.tensor(1.52)
         }
 
+        # query is body, ref is NED
         # calculate road Normal for key point from camera 2D to 3D, in query coordinate
         normal = torch.tensor([0.,0.,1]) # down, z axis of body coordinate
         # ignore roll angle
@@ -307,7 +308,6 @@ class _Dataset(Dataset):
         normal = ignore_roll * normal
 
         # gt pose~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        # query is body, ref is NED
         body2wnd = Pose.from_4x4mat(euler_matrix(self.files['roll'][idx], self.files['pitch'][idx], self.files['yaw'][idx])).float()
         wnd2sat = Pose.from_4x4mat(np.array([[-1,0,0,0],[0,-1,0,0],[0,0,1,0],[0,0,0,1]])).float()
         body2sat = wnd2sat@body2wnd
@@ -333,7 +333,7 @@ class _Dataset(Dataset):
             'T_q2r_init': body2sat_init,
             'T_q2r_gt': body2sat,
             'normal': normal,
-            'grd_ratio': torch.tensor(0.45)
+            #'grd_ratio': torch.tensor(0.45)
         }
         if self.conf['mul_query'] > 0:
             data['query_1'] = R_image
@@ -416,7 +416,6 @@ class _Dataset(Dataset):
                 query_list = ['query', 'query_1']
             else:
                 query_list = ['query']
-            query_list = ['query']
             # project ground to sat
             for q in query_list:
                 E = data['T_q2r_gt']@data[q]['T_w2cam'].inv()
@@ -448,7 +447,7 @@ class _Dataset(Dataset):
                            origin_2d_gt[1] - direct_2d_gt[1], color=['r'], scale=None)
 
                 plt.show()
-                print(name, q)
+                print(self.files['lat'][idx], self.files['long'][idx],q)
 
         return data
 
