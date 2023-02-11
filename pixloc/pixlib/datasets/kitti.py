@@ -297,11 +297,12 @@ class _Dataset(Dataset):
             'T_w2cam': Pose.from_4x4mat(np.eye(4)).float()  # grd 2 sat in q2r, so just eye(4)
         }
 
+        normal = torch.tensor([[0., 0, 1]])  # down, z axis of body coordinate
         # calculate road Normal for key point from camera 2D to 3D, in query coordinate
-        normal = torch.tensor([0.,0, 1]) # down, z axis of body coordinate
-        # ignore roll angle, point to sea level,  only left pitch
-        ignore_roll = Pose.from_4x4mat(euler_matrix(-roll, 0, 0)).float()
-        normal = ignore_roll * normal
+        # normal = torch.tensor([0.,0, 1]) # down, z axis of body coordinate
+        # # ignore roll angle, point to sea level,  only left pitch
+        # ignore_roll = Pose.from_4x4mat(euler_matrix(-roll, 0, 0)).float()
+        # normal = ignore_roll * normal
 
         imu2ENU = Pose.from_4x4mat(euler_matrix(roll, pitch, heading))# grd_x:east, grd_y:north, grd_z:up
         q2r_gt = ENU2sat@imu2ENU@body2imu # body -> sat

@@ -389,11 +389,12 @@ class _Dataset(Dataset):
             'camera_h': torch.tensor(1.60)
         }
 
-        # calculate road Normal for key point from camera 2D to 3D, in query coordinate
-        normal = torch.tensor([0.,0, 1]) # down, z axis of body coordinate
-        # ignore roll angle
-        ignore_roll = Pose.from_4x4mat(euler_matrix(-roll, 0, 0)).float()
-        normal = ignore_roll * normal
+        normal = torch.tensor([[0., 0, 1]])  # down, z axis of body coordinate
+        # # calculate road Normal for key point from camera 2D to 3D, in query coordinate
+        # normal = torch.tensor([0.,0, 1]) # down, z axis of body coordinate
+        # # ignore roll angle
+        # ignore_roll = Pose.from_4x4mat(euler_matrix(-roll, 0, 0)).float()
+        # normal = ignore_roll * normal
 
         # gt pose~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # query is body, ref is NED

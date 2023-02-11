@@ -300,18 +300,22 @@ class _Dataset(Dataset):
             'camera_h': torch.tensor(1.52)
         }
 
-        # query is body, ref is NED
-        # calculate road Normal for key point from camera 2D to 3D, in query coordinate
-        normal = torch.tensor([0.,0.,1]) # down, z axis of body coordinate
-        # ignore roll angle
-        ignore_roll = Pose.from_4x4mat(euler_matrix(-self.files['roll'][idx], 0, 0)).float()
-        normal = ignore_roll * normal
+        normal = torch.tensor([[0., 0., 1]])  # down, z axis of body coordinate
+        # # query is body, ref is NED
+        # # calculate road Normal for key point from camera 2D to 3D, in query coordinate
+        # normal = torch.tensor([0.,0.,1]) # down, z axis of body coordinate
+        # # ignore roll angle
+        # ignore_roll = Pose.from_4x4mat(euler_matrix(-self.files['roll'][idx], 0, 0)).float()
+        # normal = ignore_roll * normal
 
         # gt pose~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         body2wnd = Pose.from_4x4mat(euler_matrix(self.files['roll'][idx], self.files['pitch'][idx], self.files['yaw'][idx])).float()
         wnd2sat = Pose.from_4x4mat(np.array([[-1,0,0,0],[0,-1,0,0],[0,0,1,0],[0,0,0,1]])).float()
         body2sat = wnd2sat@body2wnd
         # body2sat = ned2sat@body2ned
+
+        # normal = torch.tensor([0.,0.,1]) # down, z axis of sat coordinate
+        # normal = body2sat.inv()*normal
 
         # init and gt pose~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # ramdom shift translation and rotation on yaw
@@ -409,7 +413,7 @@ class _Dataset(Dataset):
             print(self.files['front_ts'][idx])
 
         # debug projection
-        if 0:#idx % 50 == 0:
+        if 0:#idx % 30 == 0:
             if self.conf['mul_query'] > 1:
                 query_list = ['query','query_1','query_2','query_3']
             elif self.conf['mul_query'] > 0:
