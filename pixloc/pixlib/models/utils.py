@@ -107,7 +107,11 @@ def camera_to_onground(p3d_c, T_w2cam, camera_h, normal_grd, min=1E-8, max=200.)
     # normal from query to camera coordinate
     normal = torch.einsum('...ij,...cj->...ci', T_w2cam.R, normal_grd)
     normal = normal.squeeze(1)
-    depth = camera_h[0] / torch.einsum('b...i,b...i->b...', p3d_c, normal)
+    h = 0
+    if p3d_c.dim() > 3:
+        b,h,w,c = p3d_c.shape
+        p3d_c = p3d_c.flatten(1,2)
+    depth = camera_h[:,None] / torch.einsum('b...i,b...i->b...', p3d_c, normal)
     valid = (depth < max) & (depth >= min)
     depth = depth.clamp(min, max)
     p3d_grd = depth.unsqueeze(-1) * p3d_c
@@ -116,4 +120,6 @@ def camera_to_onground(p3d_c, T_w2cam, camera_h, normal_grd, min=1E-8, max=200.)
 
     # not valid set to far away
     p3d_grd[~valid] = torch.tensor(max).to(p3d_grd)
+    if h > 0:
+        p3d_grd = p3d_grd.reshape(b,h,w,c)
     return p3d_grd
