@@ -137,7 +137,7 @@ def inverse_pose(pose):
 
 class FordAV(BaseDataset):
     default_conf = {
-        'dataset_dir': '/data/FordAV', #/data/dataset/Ford_AV', #"/home/shan/data/FordAV", #
+        'dataset_dir': "/home/shan/data/FordAV", #'/data/FordAV', #/data/dataset/Ford_AV', #
         'mul_query': 2
     }
 
@@ -498,7 +498,7 @@ class _Dataset(Dataset):
             print(self.file_name[idx][:-1])
 
         # debug projection
-        if 1:#idx % 50 == 0:
+        if 0:#idx % 50 == 0:
             if self.conf['mul_query'] > 1:
                 query_list = ['query','query_1','query_2','query_3']
             elif self.conf['mul_query'] > 0:
