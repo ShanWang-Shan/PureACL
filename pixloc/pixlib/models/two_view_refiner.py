@@ -11,7 +11,7 @@ import numpy as np
 
 from pixloc.pixlib.models.base_model import BaseModel
 from pixloc.pixlib.models import get_model
-from pixloc.pixlib.models.utils import masked_mean, merge_confidence_map, extract_keypoints
+from pixloc.pixlib.models.utils import masked_mean, merge_confidence_map, extract_keypoints, camera_to_onground
 from pixloc.pixlib.geometry.losses import scaled_barron
 from pixloc.visualization.viz_2d import features_to_RGB,plot_images,plot_keypoints
 from pixloc.pixlib.utils.tensor import map_tensor
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 pose_loss = True
 
 # for debug
-def homography_trans(image_ref, image_q, I_ref, I_q, E, height, N_q):
+def homography_trans(image_ref, image_q, I_ref, I_q, T_w2cam,T_q2r, height, N_q):
     # inputs:
     #   image_ref:  image
     #   I_ref,I_q: camera
@@ -45,15 +45,11 @@ def homography_trans(image_ref, image_q, I_ref, I_q, E, height, N_q):
     i = torch.arange(0, h)
     j = torch.arange(0, w)
     ii, jj = torch.meshgrid(i, j)  # i:h,j:w
-    #ones = torch.ones_like(ii)
     uv = torch.stack([jj, ii], dim=-1).float().to(N_q)  # shape = [h, w, 3]
 
     p_q = I_q.image2world(uv)
-    # depth * p3d_grd_key @ Normal = grd_plane_height -> depth = grd_plane_height/(p3d_grd_key @ Normal)
-    depth = height / torch.einsum('hwi, i->hw', p_q, N_q)
-    depth = depth.clamp(0., 1000.)
-    p_q = depth.unsqueeze(-1) * p_q
-    p_ref = E*p_q # shape = [h,w,3]
+    p_grd = camera_to_onground(p_q, T_w2cam, height, N_q)
+    p_ref = T_q2r * p_grd
     uv, _ = I_ref.world2image(p_ref)
 
     # lefttop to center u:south, v: up from center to -1,-1 top left, 1,1 buttom right
@@ -73,9 +69,6 @@ def homography_trans(image_ref, image_q, I_ref, I_q, E, height, N_q):
     ax2 = fig.add_subplot(2, 1, 2)
     image_ori_q = transforms.functional.to_pil_image(image_q, mode='RGB')
     image_ori_q = np.array(image_ori_q)
-    # ignore up 50%
-    # image_ori_q[:int(h*0.65)] = 0
-    # out_image[:int(h*0.65)] = 0
     ax1.imshow(image_ori_q)
     ax2.imshow(out_image)
     plt.show()
@@ -141,11 +134,10 @@ class TwoViewRefiner(BaseModel):
         def process_siamese(data_i, data_type):
             if data_type == 'ref':
                 data_i['type'] = 'sat'
-                data_i['w2c'] = data_i['T_w2cam'] @ data['T_q2r_init']
+                data_i['q2r'] = data['T_q2r_init']
             else:
                 data_i['type'] = 'grd'
-                data_i['w2c'] = data_i['T_w2cam']
-            data_i['cam'] = data_i['camera']
+                data_i['normal'] = data['normal']
             pred_i = self.extractor(data_i)
             pred_i['camera_pyr'] = [data_i['camera'].scale(1 / s)
                                     for s in self.extractor.scales]
@@ -174,22 +166,13 @@ class TwoViewRefiner(BaseModel):
         for q in query_list:
             # find 2d key points from grd confidence map
             grd_key_confidence = merge_confidence_map(pred[q]['confidences'],confidence_count) #[B,H,W]
-            p2d_grd_key = extract_keypoints(grd_key_confidence, start_ratio = data[q]['camera'].c[0,1]/data[q]['camera'].size[0,1]) #data['grd_ratio'][0])
+            p2d_grd_key = extract_keypoints(grd_key_confidence, start_ratio = data[q]['camera'].c[0,1]/data[q]['camera'].size[0,1]+0.05) #data['grd_ratio'][0])
 
             # turn grd key points from 2d to 3d, assume points are on ground
-            p3d_grd_key = data[q]['camera'].image2world(p2d_grd_key) # 2D->3D scale unknown
-            # normal from query to camera coordinate
-            normal = torch.einsum('...ij,...cj->...ci', data[q]['T_w2cam'].R, data['normal'])
-            normal = normal.squeeze(1)
-            # depth * p3d_grd_key @ Normal = grd_plane_height -> depth = grd_plane_height/(p3d_grd_key @ Normal)
-            depth = data[q]['camera_h'][:,None] / torch.einsum('...ni,...i->...n', p3d_grd_key, normal)
-            depth = depth.clamp(0., 1000.)
-            p3d_grd_key = depth.unsqueeze(-1) * p3d_grd_key
-            # each camera coordinate to 'query' coordinate
-            p3d_grd_key = data[q]['T_w2cam'].inv()*p3d_grd_key # camera to query
+            p2d_c_key = data[q]['camera'].image2world(p2d_grd_key) # 2D->3D scale unknown
+            p3d_grd_key = camera_to_onground(p2d_c_key, data[q]['T_w2cam'], data[q]['camera_h'], data['normal'])
             # debug to check the normal is correct, project grd2sat
-            #homography_trans(data['ref']['image'][0], data[q]['image'][0], data['ref']['camera'][0], data[q]['camera'][0], data['T_q2r_gt']@(data[q]['T_w2cam'].inv()), self.grd_height, normal[0])
-
+            #homography_trans(data['ref']['image'][0], data[q]['image'][0], data['ref']['camera'][0], data[q]['camera'][0], data[q]['T_w2cam'], data['T_q2r_gt'], data[q]['camera_h'], data['normal'])
             if q == 'query':
                 p3D_query = p3d_grd_key
             else:

@@ -102,3 +102,18 @@ def extract_keypoints(confidence, topk=256, start_ratio=0.65):
     index_v += start_H
 
     return torch.cat([index_u.unsqueeze(-1),index_v.unsqueeze(-1)],dim=-1)
+
+def camera_to_onground(p3d_c, T_w2cam, camera_h, normal_grd, min=1E-8, max=200.):
+    # normal from query to camera coordinate
+    normal = torch.einsum('...ij,...cj->...ci', T_w2cam.R, normal_grd)
+    normal = normal.squeeze(1)
+    depth = camera_h[:,None] / torch.einsum('...ni,...i->...n', p3d_c, normal)
+    valid = (depth < max) & (depth >= min)
+    depth = depth.clamp(min, max)
+    p3d_grd = depth.unsqueeze(-1) * p3d_c
+    # each camera coordinate to 'query' coordinate
+    p3d_grd = T_w2cam.inv()*p3d_grd # camera to query
+
+    # not valid set to far away
+    p3d_grd[~valid] = torch.tensor(max).to(p3d_grd)
+    return p3d_grd

@@ -11,6 +11,7 @@ import torch.nn as nn
 from .base_model import BaseModel
 from .utils import checkpointed
 from copy import deepcopy
+from pixloc.pixlib.models.utils import camera_to_onground
 
 # for 1 unet test
 # HAVE_SAT = False
@@ -205,17 +206,20 @@ class UNet(BaseModel):
         vv, uu = torch.meshgrid(torch.arange(h, device=device), torch.arange(w, device=device), indexing='ij')
         uv = torch.stack([uu, vv], dim=-1)
         uv = uv[None, :, :, :].repeat(b, 1, 1, 1)  # shape = [b, h, w, 2]
-        p3d = data['cam'].image2world(uv)  # [b, h, w, 3]
-        p3d = torch.einsum('bij,bhwj->...bhwi', data['w2c'].inv().R, p3d)  # query world coordinate
-        angle = p3d[..., 0] / torch.sqrt(p3d[..., 0] ** 2 + p3d[..., 1] ** 2)  # cos -1~1
+        p3d_c = data['camera'].image2world(uv)  # [b, h, w, 3]
         if data['type'] == 'grd':
-            scale = data['camera_h'][:,None,None]/torch.clamp_min(p3d[..., 2], 1E-8) # up half is inf
-            dis = torch.sqrt((p3d[..., 0]*scale) ** 2 + (p3d[..., 1]*scale) ** 2) / max_dis
-            dis = torch.where(dis>1.2, torch.tensor(-1.).to(dis), dis) # dis/max_dis, igonore far than max_dis
-            height = p3d[..., 2]
+            p3d_q = torch.einsum('bij,bhwj->...bhwi', data['T_w2cam'].inv().R, p3d_c)  # query world coordinate
+            height = p3d_q[..., 2]
+            angle = p3d_q[..., 0] / torch.sqrt(p3d_q[..., 0] ** 2 + p3d_q[..., 1] ** 2)  # cos -1~1
+            p3d_ongrd_q = camera_to_onground(p3d_c, data['T_w2cam'], data['camera_h'], data['normal'])
+            dis = torch.sqrt((p3d_ongrd_q[..., 0]) ** 2 + (p3d_ongrd_q[..., 1]) ** 2) / max_dis
+            dis = torch.where(dis > 1.2, torch.tensor(-1.).to(dis), dis)
+            #dis = torch.where(torch.logical_or(dis>1.2, ~valid), torch.tensor(-1.).to(dis), dis) # dis/max_dis, igonore far than max_dis
         else:
-            dis = torch.sqrt(p3d[..., 0] ** 2 + p3d[..., 1] ** 2)/max_dis
-            height = -0.6 * torch.ones_like(p3d[..., 2]) # all -0.6 as max height
+            p3d_q = torch.einsum('bij,bhwj->...bhwi', data['q2r'].inv().R, p3d_c)  # query world coordinate
+            angle = p3d_q[..., 0] / torch.sqrt(p3d_q[..., 0] ** 2 + p3d_q[..., 1] ** 2)  # cos -1~1
+            dis = torch.sqrt(p3d_q[..., 0] ** 2 + p3d_q[..., 1] ** 2)/max_dis
+            height = -0.6 * torch.ones_like(p3d_q[..., 2]) # all -0.6 as max height
 
         if debug_pe:
             plt.imshow(image[0].permute(1, 2, 0).detach().cpu())
