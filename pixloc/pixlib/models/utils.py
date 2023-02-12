@@ -107,7 +107,7 @@ def camera_to_onground(p3d_c, T_w2cam, camera_h, normal_grd, min=1E-8, max=200.)
     # normal from query to camera coordinate
     normal = torch.einsum('...ij,...cj->...ci', T_w2cam.R, normal_grd)
     normal = normal.squeeze(1)
-    depth = camera_h[:,None] / torch.einsum('...ni,...i->...n', p3d_c, normal)
+    depth = camera_h[0] / torch.einsum('b...i,b...i->b...', p3d_c, normal)
     valid = (depth < max) & (depth >= min)
     depth = depth.clamp(min, max)
     p3d_grd = depth.unsqueeze(-1) * p3d_c
