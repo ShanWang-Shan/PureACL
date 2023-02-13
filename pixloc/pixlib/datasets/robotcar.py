@@ -122,7 +122,7 @@ def camera_in_ex(root, camera_model):
 
 class RobotCar(BaseDataset):
     default_conf = {
-        'dataset_dir': '/data/dataset/robotcar/', #/data/dataset/Ford_AV', #"/home/shan/data/FordAV", #
+        'dataset_dir': "/home/shan/data/robotcar/", #'/data/dataset/robotcar/',
         'mul_query': 2
     }
 
