@@ -27,8 +27,9 @@ sat_zoom = 18
 satellite_ori_size = 1280
 
 ###############################
-query_size = [480, 640]
+query_front_size = [400, 528] #[480, 640]
 query_front_ori_size = [960, 1280]
+query_size = [1024, 1024]
 query_mono_ori_size = [1024, 1024]
 # query height : 0.45m
 
@@ -37,6 +38,10 @@ ToTensor = transforms.Compose([
 
 grd_trans = transforms.Compose([
     transforms.Resize(query_size),
+    transforms.ToTensor()])
+
+grd_front_trans = transforms.Compose([
+    transforms.Resize(query_front_size),
     transforms.ToTensor()])
 
 def homography_trans(image, I_tar, I_src, E, N, height):
@@ -105,8 +110,8 @@ def camera_in_ex(root, camera_model):
         scale_x =  query_size[1]/query_mono_ori_size[1]
         scale_y = query_size[0] / query_mono_ori_size[0]
     else:
-        scale_x =  query_size[1]/query_front_ori_size[1]
-        scale_y = query_size[0] / query_front_ori_size[0]
+        scale_x =  query_front_size[1]/query_front_ori_size[1]
+        scale_y = query_front_size[0] / query_front_ori_size[0]
     camera_K = np.eye(3)
     camera_K[0, 0] = camera.focal_length[0] * scale_x
     camera_K[0, 2] = camera.principal_point[0] * scale_x
@@ -285,12 +290,12 @@ class _Dataset(Dataset):
             print("no file ", name)
         with Image.open(name, 'r') as GrdImg:
             grd = GrdImg.convert('RGB')
-            grd = grd_trans(grd)
+            grd = grd_front_trans(grd)
 
         camera_para = (self.front_camera[0, 0], self.front_camera[1, 1], self.front_camera[0, 2], self.front_camera[1, 2])
         camera = Camera.from_colmap(dict(
             model='PINHOLE', params=camera_para,
-            width=int(query_size[1]), height=int(query_size[0])))
+            width=int(query_front_size[1]), height=int(query_front_size[0])))
         body2front = Pose.from_4x4mat(self.frontC_vehicle)
         F_image = {
             # to array, when have multi query
