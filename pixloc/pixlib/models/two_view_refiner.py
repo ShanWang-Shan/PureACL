@@ -77,7 +77,7 @@ def homography_trans(image_ref, image_q, I_ref, I_q, T_w2cam,T_q2r, height, N_q)
 
 def get_weight_from_reproloss(err):
     # the reprojection loss is from 0 to 16.67 ,tensor[B]
-
+    err = err.detach()
     weight = torch.ones_like(err)*err
     weight[err < 10.] = 0
     weight = torch.clamp(weight, min=0., max=50.)
