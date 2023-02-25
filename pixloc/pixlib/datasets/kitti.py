@@ -307,45 +307,45 @@ class _Dataset(Dataset):
         imu2ENU = Pose.from_4x4mat(euler_matrix(roll, pitch, heading))# grd_x:east, grd_y:north, grd_z:up
         q2r_gt = ENU2sat@imu2ENU@body2imu # body -> sat
 
-        # # ramdom shift translation and rotation on yaw/heading
-        # YawShiftRange = 15 * np.pi / 180  # in 15 degree
-        # yaw = 2 * YawShiftRange * np.random.random() - YawShiftRange
-        # # R_yaw = torch.tensor([[np.cos(yaw), -np.sin(yaw), 0], [np.sin(yaw), np.cos(yaw), 0], [0, 0, 1]])
-        # TShiftRange = 7.5  # in 5 meter
-        # T = 2 * TShiftRange * np.random.rand((3)) - TShiftRange
-        # T[2] = 0  # no shift on height
-        #
-        # # shift = Pose.from_Rt(R_yaw,T)
-        # R_yaw = euler_matrix(0, 0, yaw)
-        # shift = Pose.from_Rt(R_yaw[:3,:3], T)
-        # q2r_init = shift @ q2r_gt
+        # ramdom shift translation and rotation on yaw/heading
+        YawShiftRange = 15 * np.pi / 180  # in 15 degree
+        yaw = 2 * YawShiftRange * np.random.random() - YawShiftRange
+        # R_yaw = torch.tensor([[np.cos(yaw), -np.sin(yaw), 0], [np.sin(yaw), np.cos(yaw), 0], [0, 0, 1]])
+        TShiftRange = 7.5  # in 5 meter
+        T = 2 * TShiftRange * np.random.rand((3)) - TShiftRange
+        T[2] = 0  # no shift on height
 
-        # use previous pose as initial pose
-        if int(image_no[:-4]) == 0:
-            q2r_init = q2r_gt
-        else:
-            pre_image_no = int(image_no[:-4])-1
-            pre_image_no = "{:010d}".format(pre_image_no)
-            pre_oxts_file_name = os.path.join(self.root, grdimage_dir, drive_dir, oxts_dir,
-                                          pre_image_no + '.txt')
-            with open(pre_oxts_file_name, 'r') as f:
-                content = f.readline().split(' ')
-            pre_location = [float(content[0]), float(content[1]), float(content[2])]
-            pre_roll, pre_pitch, pre_heading = float(content[3]), float(content[4]), float(content[5])
-            # shift of previous gps
-            dx, dy = gps_func.angular_distance_to_xy_distance_v2(location[0],
-                                                                 location[1], pre_location[0], pre_location[1])
-            if dx > 15 or dy > 15:
-                # not coutinue frames
-                q2r_init = q2r_gt
-            else:
-                pre_imu2ENU = Pose.from_4x4mat(euler_matrix(pre_roll, pre_pitch, pre_heading))  # grd_x:east, grd_y:north, grd_z:up
-                # add ne shift
-                # get the pixel offsets of car pose
-                de_pixel = dx / meter_per_pixel # along the east direction
-                dn_pixel = dy / meter_per_pixel # along the north direction
-                enu_shift = Pose.from_Rt(np.eye(3),np.array([de_pixel,dn_pixel,0]))
-                q2r_init = ENU2sat @ enu_shift @ pre_imu2ENU @ body2imu  # body -> sat
+        # shift = Pose.from_Rt(R_yaw,T)
+        R_yaw = euler_matrix(0, 0, yaw)
+        shift = Pose.from_Rt(R_yaw[:3,:3], T)
+        q2r_init = shift @ q2r_gt
+
+        # # use previous pose as initial pose
+        # if int(image_no[:-4]) == 0:
+        #     q2r_init = q2r_gt
+        # else:
+        #     pre_image_no = int(image_no[:-4])-1
+        #     pre_image_no = "{:010d}".format(pre_image_no)
+        #     pre_oxts_file_name = os.path.join(self.root, grdimage_dir, drive_dir, oxts_dir,
+        #                                   pre_image_no + '.txt')
+        #     with open(pre_oxts_file_name, 'r') as f:
+        #         content = f.readline().split(' ')
+        #     pre_location = [float(content[0]), float(content[1]), float(content[2])]
+        #     pre_roll, pre_pitch, pre_heading = float(content[3]), float(content[4]), float(content[5])
+        #     # shift of previous gps
+        #     dx, dy = gps_func.angular_distance_to_xy_distance_v2(location[0],
+        #                                                          location[1], pre_location[0], pre_location[1])
+        #     if dx > 15 or dy > 15:
+        #         # not coutinue frames
+        #         q2r_init = q2r_gt
+        #     else:
+        #         pre_imu2ENU = Pose.from_4x4mat(euler_matrix(pre_roll, pre_pitch, pre_heading))  # grd_x:east, grd_y:north, grd_z:up
+        #         # add ne shift
+        #         # get the pixel offsets of car pose
+        #         de_pixel = dx / meter_per_pixel # along the east direction
+        #         dn_pixel = dy / meter_per_pixel # along the north direction
+        #         enu_shift = Pose.from_Rt(np.eye(3),np.array([de_pixel,dn_pixel,0]))
+        #         q2r_init = ENU2sat @ enu_shift @ pre_imu2ENU @ body2imu  # body -> sat
 
         # scene
         data = {
