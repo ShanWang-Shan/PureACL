@@ -220,7 +220,10 @@ class TwoViewRefiner(BaseModel):
                 else:
                     # check repeat
                     multi_projection = torch.logical_and(mask, mask_cur)
-                    reset = W_q_cur[:,:,0]*W_q_cur[:,:,1] * multi_projection > W_q[:,:,0]*W_q[:,:,1] * multi_projection
+                    if W_q_cur.size(2) > 1:
+                        reset = W_q_cur[:,:,0]*W_q_cur[:,:,1] * multi_projection > W_q[:,:,0]*W_q[:,:,1] * multi_projection
+                    else:
+                        reset = W_q_cur[:, :, 0] * multi_projection > W_q[:, :, 0] * multi_projection
                     mask = mask & (~reset)
                     mask_cur = mask_cur & ~(multi_projection & ~reset)
 
