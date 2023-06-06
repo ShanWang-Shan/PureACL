@@ -5,7 +5,7 @@ Created on Fri Dec  4 11:44:19 2020
 @author: loocy
 """
 
-from pixloc.pixlib.datasets.base_dataset import BaseDataset
+from sidfm.pixlib.datasets.base_dataset import BaseDataset
 import numpy as np
 import os
 from PIL import Image, ImageFile
@@ -14,8 +14,8 @@ from torchvision import transforms
 import torch
 from matplotlib import pyplot as plt
 import robotcar_data_process.robotcar_gps_coord_func as gps_func
-from pixloc.pixlib.datasets.transformations import euler_matrix
-from pixloc.pixlib.geometry import Camera, Pose
+from sidfm.pixlib.datasets.transformations import euler_matrix
+from sidfm.pixlib.geometry import Camera, Pose
 
 from robotcar_data_process.camera_model import CameraModel
 from robotcar_data_process.transform import build_se3_transform
