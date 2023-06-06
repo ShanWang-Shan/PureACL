@@ -17,7 +17,7 @@ from PIL import Image as PILI
 
 root_folder = "/data/dataset/Ford_AV"
 
-log_id = "2017-10-26-V2-Log6" #"2017-08-04-V2-Log6" #
+log_id = "2017-10-26-V2-Log3" #"2017-08-04-V2-Log6" #
 
 info_folder = 'info_files'
 
@@ -27,7 +27,7 @@ Geodetic = read_numpy(log_folder, 'satellite_gps_center.npy')
 
 
 url_head = 'https://maps.googleapis.com/maps/api/staticmap?'
-zoom = 20
+zoom = 18
 sat_size = [640, 640]
 maptype = 'satellite'
 scale = 2
@@ -37,7 +37,7 @@ nb_keys = len(keys)
 
 nb_satellites = Geodetic.shape[0]
 
-satellite_folder = os.path.join(root_folder, log_id, "Satellite_Images")
+satellite_folder = os.path.join(root_folder, log_id, "Satellite_Images_18")
 
 if not os.path.exists(satellite_folder):
         os.makedirs(satellite_folder)

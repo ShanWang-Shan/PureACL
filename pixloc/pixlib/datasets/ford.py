@@ -27,11 +27,11 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True # add for 'broken data stream'
 points_type = 0 # 0: use 3d points from map, 1: use 3d points from lidar blue
 gt_from_gps = True #ture: pose gt from gps, False: pose gt from NED pose gt
 
-pre_init = True
+pre_init = False
 sat_dir = 'Satellite_Images_18'
 sat_zoom = 18
 log_id_train = "2017-08-04-V2-Log4"
-# log_id_val = "2017-07-24-V2-Log3"
+log_id_val = "2017-07-24-V2-Log4"
 log_id_test = "2017-10-26-V2-Log4"
 map_points_dir = 'pcd'
 lidar_dir = 'lidar_blue_pointcloud'

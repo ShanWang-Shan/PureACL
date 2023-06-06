@@ -20,7 +20,7 @@ import random
 from pixloc.pixlib.datasets.transformations import euler_matrix
 from pixloc.pixlib.geometry import Camera, Pose
 
-pre_init = True
+pre_init = False
 satmap_zoom = 18 
 satmap_dir = 'satmap_'+str(satmap_zoom)
 grdimage_dir = 'raw_data'
@@ -173,6 +173,8 @@ class _Dataset(Dataset):
 
                 self.file_name.append(line)
 
+        if 0: # for 1 item
+            self.file_name = random.sample(self.file_name, 1)
         if 0:  # for debug
             if split == 'train':
                 self.file_name = random.sample(self.file_name, len(self.file_name)//10)

@@ -256,6 +256,9 @@ def training(rank, conf, output_dir, args):
     # add 1c confidence
     #model.add_grd_confidence()
 
+    # add weight_generator
+    #model.extractor.add_weight_generator()
+
     if args.distributed:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
         model = torch.nn.parallel.DistributedDataParallel(
@@ -431,15 +434,15 @@ def main_worker(rank, conf, output_dir, args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--experiment', type=str, default='kitti')
+    parser.add_argument('--experiment', type=str, default='ford')
     parser.add_argument('--conf', type=str)
     parser.add_argument('--overfit', action='store_true', default=False)
     parser.add_argument('--restore', action='store_true', default=True)
     parser.add_argument('--distributed', action='store_true',default=False)
-    parser.add_argument('--dotlist', nargs='*', default=["data.name=kitti",
-                                                         "data.num_workers=0","data.train_batch_size=3","data.test_batch_size=3",
-                                                         "data.mul_query=0", "model.grd_height=1.65",# 0: 1 image input, 1: 2 image inputs, 2: 4 image inputs #ford height:1.6 kitti:1.65
-                                                         "train.lr=1e-5","model.name=two_view_refiner"])
+    parser.add_argument('--dotlist', nargs='*', default=["data.name=ford",
+                                                         "data.num_workers=0","data.train_batch_size=1","data.test_batch_size=1",
+                                                         "data.mul_query=2",# 0: 1 image input, 1: 2 image inputs, 2: 4 image inputs #ford height:1.6 kitti:1.65
+                                                         "train.lr=1e-4","model.name=two_view_refiner"])
     args = parser.parse_intermixed_args()
 
     logger.info(f'Starting experiment {args.experiment}')
@@ -475,5 +478,5 @@ if __name__ == '__main__':
             main_worker, nprocs=args.n_gpus,
             args=(conf, output_dir, args))
     else:
-        os.environ["CUDA_VISIBLE_DEVICES"] = '1'
+        os.environ["CUDA_VISIBLE_DEVICES"] = '0'
         main_worker(0, conf, output_dir, args)

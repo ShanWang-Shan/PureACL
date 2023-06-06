@@ -8,8 +8,8 @@ import os
 import math
 from scipy.io import savemat
 
-Dataset = 'robotcar' #'ford' #'kitti'
-exp = 'robotcar'#'ford_pe'
+Dataset = 'ford' #'kitti' #'robotcar' #'ford' #
+exp = 'ford' #'kitti'#'robotcar'#
 
 from pixloc.pixlib.utils.tensor import batch_to_device, map_tensor
 from pixloc.pixlib.utils.tools import set_seed
@@ -185,7 +185,7 @@ def Val(refiner, val_loader, save_path, best_result):
             end, _ = logger.yaw_trajectory[-1]
             axes[0].quiver(start[:, 0], start[:, 1], end[:, 0] - start[:, 0], start[:, 1] - end[:, 1],
                            color='b')
-            add_text(0, 'reference')
+            #add_text(0, 'reference')
             plt.show()
 
             if data_conf['mul_query'] > 0:
@@ -209,6 +209,17 @@ def Val(refiner, val_loader, save_path, best_result):
                             dpi=50,  # set to 100-200 for higher res
                             titles=[valid_q.sum().item()])
                 plot_keypoints([p2D_q[valid_q]], colors='lime')
+
+            # original input images
+            plot_images([imr], dpi=50)
+            plt.show()
+            if data_conf['mul_query'] > 1:
+                plot_images([imq, imq_1, imq_2, imq_3], dpi=50)
+            elif data_conf['mul_query'] > 0:
+                plot_images([imq, imq_1], dpi=50)
+            else:
+                plot_images([imq], dpi=50)
+            plt.show()
 
             # add merged confidence map
             C_sat = merge_confidence_map(pred_['ref']['confidences'], confidence_map_count)  # [B,C,H,W]
@@ -252,13 +263,13 @@ def Val(refiner, val_loader, save_path, best_result):
             for i in range(len(pred['ref']['feature_maps'])):  # level from fine to coarse
                 # ref
                 plot_images(features_to_RGB(pred['ref']['feature_maps'][i].numpy(), skip=1), dpi=50)
-                add_text(0, f'ref_f_Level {i}')
+                #add_text(0, f'ref_f_Level {i}')
                 plt.show()
                 for confi in range(confidence_map_count):
                     C_r = pred['ref']['confidences'][i][confi]
                     C_r = min_max_norm(C_r)
                     plot_images([C_r], cmaps=mpl.cm.gnuplot2, dpi=50)
-                    add_text(0, f'ref_c_Level {i},{confi}')
+                    #add_text(0, f'ref_c_Level {i},{confi}')
                     axes = plt.gcf().axes
                     axes[0].imshow(imr, alpha=0.2, extent=axes[0].images[0]._extent)
                     plt.show()
@@ -274,7 +285,7 @@ def Val(refiner, val_loader, save_path, best_result):
                                                 pred['query_1']['feature_maps'][i].numpy(), skip=1), dpi=50)
                 else:
                     plot_images(features_to_RGB(pred['query']['feature_maps'][i].numpy(), skip=1), dpi=50)
-                add_text(0, f'query_f_Level {i}')
+                #add_text(0, f'query_f_Level {i}')
                 plt.show()
                 for confi in range(confidence_map_count):
                     C_q = pred['query']['confidences'][i][confi]
@@ -288,7 +299,7 @@ def Val(refiner, val_loader, save_path, best_result):
                         C_q3 = min_max_norm(C_q3)
                     if data_conf['mul_query'] > 1:
                         plot_images([C_q, C_q1, C_q2, C_q3], cmaps=mpl.cm.gnuplot2, dpi=50)
-                        add_text(0, f'query_c_Level {i},{confi}')
+                        #add_text(0, f'query_c_Level {i},{confi}')
                         axes = plt.gcf().axes
                         axes[0].imshow(imq, alpha=0.2, extent=axes[0].images[0]._extent)
                         axes[1].imshow(imq_1, alpha=0.2, extent=axes[1].images[0]._extent)
@@ -296,13 +307,13 @@ def Val(refiner, val_loader, save_path, best_result):
                         axes[3].imshow(imq_3, alpha=0.2, extent=axes[3].images[0]._extent)
                     elif data_conf['mul_query'] > 0:
                         plot_images([C_q, C_q1], cmaps=mpl.cm.gnuplot2, dpi=50)
-                        add_text(0, f'query_c_Level {i},{confi}')
+                        #add_text(0, f'query_c_Level {i},{confi}')
                         axes = plt.gcf().axes
                         axes[0].imshow(imq, alpha=0.2, extent=axes[0].images[0]._extent)
                         axes[1].imshow(imq_1, alpha=0.2, extent=axes[1].images[0]._extent)
                     else:
                         plot_images([C_q], cmaps=mpl.cm.gnuplot2, dpi=50)
-                        add_text(0, f'query_c_Level {i},{confi}')
+                        #add_text(0, f'query_c_Level {i},{confi}')
                         axes = plt.gcf().axes
                         axes[0].imshow(imq, alpha=0.2, extent=axes[0].images[0]._extent)
                     plt.show()
@@ -388,7 +399,7 @@ if __name__ == 'evaluation':  #''__main__':
     save_path = 'parameter'
 
     if 0: # test
-        #test(refiner, test_loader)
-        test(refiner, val_loader)
+        test(refiner, test_loader)
+        #test(refiner, val_loader)
     if 1: # val
         Val(refiner, val_loader, save_path, 0)
