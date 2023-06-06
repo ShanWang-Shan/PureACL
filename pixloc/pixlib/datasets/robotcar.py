@@ -418,7 +418,7 @@ class _Dataset(Dataset):
             print(self.files['front_ts'][idx])
 
         # debug projection
-        if 0:#idx % 30 == 0:
+        if idx % 30 == 0:
             if self.conf['mul_query'] > 1:
                 query_list = ['query','query_1','query_2','query_3']
             elif self.conf['mul_query'] > 0:
