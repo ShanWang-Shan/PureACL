@@ -5,20 +5,20 @@ Created on Fri Dec  4 11:44:19 2020
 @author: loocy
 """
 
-from pixloc.pixlib.datasets.base_dataset import BaseDataset
+from sidfm.pixlib.datasets.base_dataset import BaseDataset
 import numpy as np
 import os
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 import torch
-import pixloc.pixlib.datasets.Kitti_utils as Kitti_utils
+import sidfm.pixlib.datasets.Kitti_utils as Kitti_utils
 from matplotlib import pyplot as plt
 # from sklearn.neighbors import NearestNeighbors
 import kitti_data_process.Kitti_gps_coord_func as gps_func
 import random
-from pixloc.pixlib.datasets.transformations import euler_matrix
-from pixloc.pixlib.geometry import Camera, Pose
+from sidfm.pixlib.datasets.transformations import euler_matrix
+from sidfm.pixlib.geometry import Camera, Pose
 
 pre_init = False
 satmap_zoom = 18 

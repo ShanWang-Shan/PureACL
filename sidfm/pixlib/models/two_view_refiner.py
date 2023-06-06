@@ -1,5 +1,5 @@
 """
-The top-level model of training-time PixLoc.
+The top-level model of training-time sidfm.
 Encapsulates the feature extraction, pose optimization, loss and metrics.
 """
 import torch
@@ -9,12 +9,12 @@ from copy import deepcopy
 import omegaconf
 import numpy as np
 
-from pixloc.pixlib.models.base_model import BaseModel
-from pixloc.pixlib.models import get_model
-from pixloc.pixlib.models.utils import masked_mean, merge_confidence_map, extract_keypoints, camera_to_onground
-from pixloc.pixlib.geometry.losses import scaled_barron
-from pixloc.visualization.viz_2d import features_to_RGB,plot_images,plot_keypoints
-from pixloc.pixlib.utils.tensor import map_tensor
+from sidfm.pixlib.models.base_model import BaseModel
+from sidfm.pixlib.models import get_model
+from sidfm.pixlib.models.utils import masked_mean, merge_confidence_map, extract_keypoints, camera_to_onground
+from sidfm.pixlib.geometry.losses import scaled_barron
+from sidfm.visualization.viz_2d import features_to_RGB,plot_images,plot_keypoints
+from sidfm.pixlib.utils.tensor import map_tensor
 import matplotlib as mpl
 
 from matplotlib import pyplot as plt

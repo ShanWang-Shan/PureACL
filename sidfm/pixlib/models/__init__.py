@@ -1,5 +1,5 @@
-from pixloc.pixlib.utils.tools import get_class
-from pixloc.pixlib.models.base_model import BaseModel
+from sidfm.pixlib.utils.tools import get_class
+from sidfm.pixlib.models.base_model import BaseModel
 
 
 def get_model(name):

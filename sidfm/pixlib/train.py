@@ -19,11 +19,11 @@ from torch.utils.tensorboard import SummaryWriter
 from datasets import get_dataset
 from models import get_model
 from utils.stdout_capturing import capture_outputs
-from pixloc.pixlib.utils.tools import AverageMetric, MedianMetric, set_seed, fork_rng
-from pixloc.pixlib.utils.tensor import batch_to_device
-from pixloc.pixlib.utils.experiments import (delete_old_checkpoints, get_last_checkpoint, get_best_checkpoint)
-from pixloc.settings import TRAINING_PATH
-from pixloc import logger
+from sidfm.pixlib.utils.tools import AverageMetric, MedianMetric, set_seed, fork_rng
+from sidfm.pixlib.utils.tensor import batch_to_device
+from sidfm.pixlib.utils.experiments import (delete_old_checkpoints, get_last_checkpoint, get_best_checkpoint)
+from sidfm.settings import TRAINING_PATH
+from sidfm import logger
 
 import numpy as np
 import datetime

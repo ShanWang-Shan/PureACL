@@ -11,13 +11,13 @@ from scipy.io import savemat
 Dataset = 'ford' #'kitti' #'robotcar' #'ford' #
 exp = 'ford' #'kitti'#'robotcar'#
 
-from pixloc.pixlib.utils.tensor import batch_to_device, map_tensor
-from pixloc.pixlib.utils.tools import set_seed
-from pixloc.pixlib.utils.experiments import load_experiment
-from pixloc.visualization.viz_2d import (
+from sidfm.pixlib.utils.tensor import batch_to_device, map_tensor
+from sidfm.pixlib.utils.tools import set_seed
+from sidfm.pixlib.utils.experiments import load_experiment
+from sidfm.visualization.viz_2d import (
     plot_images, plot_keypoints, plot_matches, cm_RdGn,
     features_to_RGB, add_text, save_plot)
-from pixloc.pixlib.models.utils import merge_confidence_map
+from sidfm.pixlib.models.utils import merge_confidence_map
 
 data_conf = {
     'train_batch_size': 1,
@@ -28,13 +28,13 @@ data_conf = {
 
 
 if Dataset == 'ford':
-    from pixloc.pixlib.datasets.ford import FordAV
+    from sidfm.pixlib.datasets.ford import FordAV
     dataset = FordAV(data_conf)
 elif Dataset == 'kitti':
-    from pixloc.pixlib.datasets.kitti import Kitti
+    from sidfm.pixlib.datasets.kitti import Kitti
     dataset = Kitti(data_conf)
 elif Dataset == 'robotcar':
-    from pixloc.pixlib.datasets.robotcar import RobotCar
+    from sidfm.pixlib.datasets.robotcar import RobotCar
     dataset = RobotCar(data_conf)
 else:
     print("not support dataset")

@@ -5,7 +5,7 @@ Created on Fri Dec  4 11:44:19 2020
 @author: loocy
 """
 
-from pixloc.pixlib.datasets.base_dataset import BaseDataset
+from sidfm.pixlib.datasets.base_dataset import BaseDataset
 import numpy as np
 import os
 from PIL import Image, ImageFile
@@ -13,13 +13,12 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 import torch
 from matplotlib import pyplot as plt
-#import pixloc.pixlib.datasets.Kitti_gps_coord_func as gps_func
 import ford_data_process.gps_coord_func as gps_func
 import random
 import cv2
 from glob import glob
-from pixloc.pixlib.datasets.transformations import quaternion_matrix, euler_matrix
-from pixloc.pixlib.geometry import Camera, Pose
+from sidfm.pixlib.datasets.transformations import quaternion_matrix, euler_matrix
+from sidfm.pixlib.geometry import Camera, Pose
 import open3d as o3d
 import yaml
 ImageFile.LOAD_TRUNCATED_IMAGES = True # add for 'broken data stream'

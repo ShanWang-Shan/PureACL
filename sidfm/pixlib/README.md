@@ -22,8 +22,8 @@ Datasets, models, and training runs are parametrized by [omegaconf](https://gith
 
 The following command starts a new training run:
 ```bash
-python3 -m pixloc.pixlib.train experiment_name \
-		--conf pixloc/pixlib/configs/config_name.yaml
+python3 -m sidfm.pixlib.train experiment_name \
+		--conf sidfm/pixlib/configs/config_name.yaml
 ```
 
 It creates a new directory `experiment_name/` in `TRAINING_PATH` and dumps the configuration, model checkpoints, logs of stdout, and [Tensorboard](https://pytorch.org/docs/stable/tensorboard.html) summaries.
@@ -43,7 +43,7 @@ Extra flags can be given:
 
 After training, you can easily load a model to evaluate it:
 ```python
-from pixloc.pixlib.utils.experiments import load_experiment
+from sidfm.pixlib.utils.experiments import load_experiment
 
 test_conf = {}  # will overwrite the training and default configurations
 model = load_experiment('name_of_my_experiment', test_conf)

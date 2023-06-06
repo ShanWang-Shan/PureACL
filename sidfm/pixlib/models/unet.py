@@ -12,7 +12,7 @@ import torch.nn.functional as F
 from .base_model import BaseModel
 from .utils import checkpointed
 from copy import deepcopy
-from pixloc.pixlib.models.utils import camera_to_onground
+from sidfm.pixlib.models.utils import camera_to_onground
 
 # for 1 unet test
 two_confidence = False # False when only grd
@@ -28,7 +28,7 @@ if debug_pe:
     from matplotlib import pyplot as plt
     from mpl_toolkits.axes_grid1 import make_axes_locatable
     import matplotlib as mpl
-    from pixloc.visualization.viz_2d import plot_images
+    from sidfm.visualization.viz_2d import plot_images
 
 class DecoderBlock(nn.Module):
     def __init__(self, previous, skip, out, num_convs=1, norm=nn.BatchNorm2d):
