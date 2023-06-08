@@ -15,12 +15,12 @@ from copy import deepcopy
 from sidfm.pixlib.models.utils import camera_to_onground
 
 # for 1 unet test
-two_confidence = False # False when only grd
+two_confidence = True # False when only grd
 max_dis = 200
 debug_pe = False
 visualize = False
 
-updown_fusion = 1 #0: without 1:transformer, 2: linear, 3:nerf
+updown_fusion = 0 #0: without 1:transformer, 2: linear, 3:nerf
 if updown_fusion == 1:
     from .fusion_topdown import Fusion_topdown
 

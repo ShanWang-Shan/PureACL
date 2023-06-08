@@ -407,6 +407,7 @@ class _Dataset(Dataset):
         if not pre_init:
             # init and gt pose~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
             # ramdom shift translation and rotation on yaw
+            np.random.seed(2023)
             YawShiftRange = 15 * np.pi / 180 #error degree
             yaw = 2 * YawShiftRange * np.random.random() - YawShiftRange
             # R_yaw = torch.tensor([[np.cos(yaw),-np.sin(yaw),0],  [np.sin(yaw),np.cos(yaw),0], [0, 0, 1]])

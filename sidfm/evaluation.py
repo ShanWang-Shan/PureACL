@@ -8,8 +8,8 @@ import os
 import math
 from scipy.io import savemat
 
-Dataset = 'ford' #'kitti' #'robotcar' #'ford' #
-exp = 'ford' #'kitti'#'robotcar'#
+Dataset = 'kitti' #'kitti' #'ford' #
+exp = 'kitti_pe' #'kitti'#  #'ford' #
 
 from sidfm.pixlib.utils.tensor import batch_to_device, map_tensor
 from sidfm.pixlib.utils.tools import set_seed
@@ -392,14 +392,14 @@ def test(refiner, test_loader):
 
     return
 
-if __name__ == 'evaluation':  #''__main__':
+if __name__ == '__main__':
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
     save_path = 'parameter'
 
-    if 0: # test
+    if 1: # test
         test(refiner, test_loader)
         #test(refiner, val_loader)
-    if 1: # val
+    if 0: # val
         Val(refiner, val_loader, save_path, 0)

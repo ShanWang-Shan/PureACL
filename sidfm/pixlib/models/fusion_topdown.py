@@ -8,7 +8,7 @@ from torch import nn
 
 from einops import rearrange, repeat
 
-from pixloc.visualization.viz_2d import (plot_images, features_to_RGB, add_text, save_plot)
+from sidfm.visualization.viz_2d import (plot_images, features_to_RGB, add_text, save_plot)
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
