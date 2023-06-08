@@ -8,8 +8,8 @@ import os
 import math
 from scipy.io import savemat
 
-Dataset = 'kitti' #'kitti' #'ford' #
-exp = 'kitti_pe' #'kitti'#  #'ford' #
+Dataset = 'ford' #'kitti' #'ford' #
+exp = 'ford_pe' #'kitti'#  #'ford' #
 
 from sidfm.pixlib.utils.tensor import batch_to_device, map_tensor
 from sidfm.pixlib.utils.tools import set_seed
