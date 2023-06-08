@@ -224,13 +224,11 @@ def training(rank, conf, output_dir, args):
         logger.info('Data in overfitting mode')
         assert not args.distributed
         train_loader = dataset.get_overfit_loader('train')
-        #val_loader = dataset.get_overfit_loader('val')
-        val_loader = dataset.get_overfit_loader('test')
+        val_loader = dataset.get_overfit_loader('val')
     else:
         train_loader = dataset.get_data_loader(
             'train', distributed=args.distributed)
-        #val_loader = dataset.get_data_loader('val')
-        val_loader = dataset.get_data_loader('test')
+        val_loader = dataset.get_data_loader('val')
     if rank == 0:
         logger.info(f'Training loader has {len(train_loader)} batches')
         logger.info(f'Validation loader has {len(val_loader)} batches')
@@ -249,15 +247,6 @@ def training(rank, conf, output_dir, args):
     loss_fn, metrics_fn = model.loss, model.metrics
     if init_cp is not None:
         model.load_state_dict(init_cp['model'])
-
-        # fix unet features except confidence
-        #model.extractor.fix_parameter_of_feature()
-
-    # add 1c confidence
-    #model.add_grd_confidence()
-
-    # add weight_generator
-    #model.extractor.add_weight_generator()
 
     if args.distributed:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
@@ -368,11 +357,6 @@ def training(rank, conf, output_dir, args):
                         'training/lr', optimizer.param_groups[0]['lr'], tot_it)
 
             del pred, data, loss, losses
-
-            if 0: #for test
-                if it > 2: 
-                    stop = True
-                    break
 
             results = 0
             if (stop or it == (len(train_loader) - 1)):

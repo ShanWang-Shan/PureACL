@@ -275,9 +275,6 @@ class TwoViewRefiner(BaseModel):
 
         return torch.sum(loss, dim=-1)/(torch.sum(valid)+1e-6)
 
-    def add_grd_confidence(self):
-        self.extractor.add_grd_confidence()
-
     def loss(self, pred, data):
         cam_ref = data['ref']['camera']
         points_3d = pred['query']['grd_key_3d']

@@ -7,11 +7,9 @@ and makes sure that they are well aligned.
 import torchvision
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from .base_model import BaseModel
 from .utils import checkpointed
-from copy import deepcopy
 from sidfm.pixlib.models.utils import camera_to_onground
 
 # for 1 unet test
@@ -20,13 +18,8 @@ max_dis = 200
 debug_pe = False
 visualize = False
 
-updown_fusion = 0 #0: without 1:transformer, 2: linear, 3:nerf
-if updown_fusion == 1:
-    from .fusion_topdown import Fusion_topdown
-
 if debug_pe:
     from matplotlib import pyplot as plt
-    from mpl_toolkits.axes_grid1 import make_axes_locatable
     import matplotlib as mpl
     from sidfm.visualization.viz_2d import plot_images
 
@@ -48,9 +41,6 @@ class DecoderBlock(nn.Module):
             layers.append(nn.ReLU(inplace=True))
         self.layers = nn.Sequential(*layers)
 
-        # norm is instanceNorm2d when batch is 1
-        #self.norm = nn.InstanceNorm2d(out)
-
     def forward(self, previous, skip):
         upsampled = self.upsample(previous)
         # If the shape of the input map `skip` is not a multiple of 2,
@@ -63,20 +53,7 @@ class DecoderBlock(nn.Module):
         # assert (hu == hs) and (wu == ws), 'Careful about padding'
         skip = skip[:, :, :hu, :wu]
 
-        # norm is instanceNorm2d when batch is 1
         return self.layers(torch.cat([upsampled, skip], dim=1))
-        # if previous.size(0) == 1:
-        #     if len(self.layers) >= 3:
-        #         # bn is in layers[1]
-        #         out = self.layers[0](torch.cat([upsampled, skip], dim=1))
-        #         if torch.isnan(out).any():
-        #             print('nan in decoder conv')
-        #         out = self.norm(out)
-        #         if torch.isnan(out).any():
-        #             print('nan in decoder inorm')
-        #         return self.layers[2:](out)
-        # else:
-        #     return self.layers(torch.cat([upsampled, skip], dim=1))
 
 class AdaptationBlock(nn.Sequential):
     def __init__(self, inp, out):
@@ -170,20 +147,11 @@ class UNet(BaseModel):
         adaptation = []
         if conf.compute_uncertainty:
             uncertainty = []
-        if updown_fusion:
-            fuse_net= []
         for idx, i in enumerate(conf.output_scales):
             if conf.decoder is None or i == (len(self.encoder) - 1):
                 input_ = skip_dims[i]
             else:
                 input_ = conf.decoder[-1-i]
-
-            if updown_fusion == 1:
-                fuse_net.append(Fusion_topdown(input_))
-            elif updown_fusion == 2:
-                fuse_net.append(WeightGenerateBlock(input_ + 3, 1))
-            elif updown_fusion == 3:
-                fuse_net.append(WeightGenerateBlock(input_ + 3, 2))
 
             # out_dim can be an int (same for all scales) or a list (per scale)
             dim = conf.output_dim
@@ -202,9 +170,6 @@ class UNet(BaseModel):
         self.scales = [2**s for s in conf.output_scales]
         if conf.compute_uncertainty:
             self.uncertainty = nn.ModuleList(uncertainty)
-
-        if updown_fusion:
-            self.topdown_fusion = nn.ModuleList(fuse_net)
 
     def _forward(self, data):
         image = data['image']
@@ -269,74 +234,6 @@ class UNet(BaseModel):
         else:
             pre_features = skip_features
 
-        # up-down feature fusion
-        if updown_fusion and data['type'] == 'grd':
-            if updown_fusion == 3:
-                raw2alpha = lambda raw, act_fn=F.relu: 1. - torch.exp(-act_fn(raw))  # dists is fix to 1
-            for layer, i in zip(self.topdown_fusion, self.conf.output_scales):
-                # pose embedding, query world coordinate
-                if extr.shape[-2:] != pre_features[i].shape[-2:]:
-                    pe = F.interpolate(extr, size=pre_features[i].shape[-2:])
-                else:
-                    pe = extr
-
-                # # embedding uv
-                #vv, uu = torch.meshgrid(torch.arange(h, device=device), torch.arange(w, device=device), indexing='ij')
-                #pe = torch.stack([uu, vv], dim=0)  # shape = [2, h, w]
-                # pe = pe[None, :, :, :].repeat(b, 1, 1, 1)
-
-                # transformer fusion ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-                if updown_fusion == 1:
-                    v_start_ratio = data['camera'].c[0, 1] / data['camera'].size[0, 1] + 0.05
-                    v_start = int(h * v_start_ratio)
-                    if visualize: # visualize
-                        fused_feature = layer(pre_features[i], pe, v_start, visualize, image) #[b,c,h-v_start,w]
-                    else:
-                        fused_feature = layer(pre_features[i], pe, v_start)#[b,c,h-v_start,w]
-                    fused_feature = torch.cat([pre_features[i][:, :, :v_start], fused_feature], dim=2)
-                # end transformer fusion ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-                elif updown_fusion == 2:
-                    # linear fusion ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-                    # generate fusion weight
-                    f_pe = torch.cat([pre_features[i], pe], dim=1)  # [b,c+3,h,w]
-                    fuse_weight = layer(f_pe)  # [b,1,h,w]
-
-                    fused_feature = fuse_weight * pre_features[i]
-                    sum_feature = torch.cumsum(fused_feature, dim=2) # [b,c,h,w]
-                    sum_weight = torch.cumsum(fuse_weight, dim=2) # [b,1,h,w]
-                    fused_feature = sum_feature/(sum_weight+1e-7)
-                    # end linear fusion ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-                elif updown_fusion == 3:
-                    #nerf fusion ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-                    f_pe = torch.cat([pre_features[i], pe], dim=1)  # [b,c+3,h,w]
-                    out = layer(f_pe)  # [b,2,h,w]
-                    # beta = self.beta_net(density)  # [b,1,h,w]
-                    density = out[:,:1]  # [b,1,h,w]
-                    beta = torch.sigmoid(-out[:,1:]) #0~1
-
-                    # visualize density & beta
-                    if visualize:
-                        density_img = density[0].permute(1, 2, 0).cpu().detach()
-                        deta_img = beta[0].permute(1, 2, 0).cpu().detach()
-                        ori_img = image[0].permute(1, 2, 0).cpu()
-                        plot_images([density_img, deta_img], cmaps=mpl.cm.gnuplot2, dpi=50)
-                        add_text(0, f'Level {i}')
-                        axes = plt.gcf().axes
-                        axes[0].imshow(ori_img, alpha=0.2, extent=axes[0].images[0]._extent)
-                        axes[1].imshow(ori_img, alpha=0.2, extent=axes[1].images[0]._extent)
-                        plt.show()
-
-                    alpha = raw2alpha(density)  # [b,1,h(samples), w(rays)]
-                    weights = alpha * torch.cumprod(torch.cat([torch.ones_like(alpha[:,:,:1]), 1. - alpha + 1e-10], 2),
-                                                    -1)[:, :, :-1]
-                    fused_feature = weights * pre_features[i]
-                    sum_feature = torch.cumsum(fused_feature, dim=2)  # [b,c,h,w]
-                    sum_weight = torch.cumsum(weights, dim=2)  # [b,1,h,w]
-                    fused_feature = sum_feature / (sum_weight + 1e-7)
-                    fused_feature = beta * pre_features[i] + (1-beta) * fused_feature
-                    #end nerf fusion ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-                pre_features[i] = fused_feature
-
         out_features = []
         for adapt, i in zip(self.adaptation, self.conf.output_scales):
             out_features.append(adapt(pre_features[i]))
@@ -358,59 +255,6 @@ class UNet(BaseModel):
     def metrics(self, pred, data):
         raise NotImplementedError
 
-    # def add_sat_unet(self):
-    #     self.sat_encoder = deepcopy(self.encoder)
-    #     self.sat_decoder = deepcopy(self.decoder)
-    #     self.sat_adaptation = deepcopy(self.adaptation)
-    #
-    # def add_sat_branch(self):
-    #     # high_encoder = self.encoder[2:]
-    #     # sat_low_decoder = deepcopy(self.encoder[:2])
-    #     # only not share weight in last layer of encoder
-    #     high_encoder = deepcopy(self.encoder[self.sat_start_layer:])
-    #     # sat_low_encoder = self.encoder[:-1]
-    #     blocks = []
-    #     # for block in sat_low_encoder:
-    #     #     blocks.append(block)
-    #     for block in high_encoder:
-    #         blocks.append(block)
-    #     self.sat_encoder = nn.ModuleList(blocks)
-
-    def add_grd_confidence(self):
-        for old_uncertainty in self.uncertainty:
-            in_ch = old_uncertainty[0].weight.shape[1]
-            # add 1ch
-            # new_uncertainty = nn.Conv2d(in_ch, 2, kernel_size=1).to(old_uncertainty[0].weight)
-            # new_weight = torch.cat([old_uncertainty[0].weight.clone(), new_uncertainty.weight[1:].clone()], dim=0)
-            # remove 1ch
-            new_uncertainty = nn.Conv2d(in_ch, 1, kernel_size=1).to(old_uncertainty[0].weight)
-            new_weight = old_uncertainty[0].weight[:1].clone()
-            new_uncertainty.weight = nn.Parameter(new_weight)
-            old_uncertainty[0] = new_uncertainty
-
-    # fix parameter for feature extractor, only need gradiant of confidence
-    def fix_parameter_of_feature(self):
-        for param in self.encoder.parameters():
-            param.requires_grad = False
-        for param in self.decoder.parameters():
-            param.requires_grad = False
-        for param in self.adaptation.parameters():
-            param.requires_grad = False
-        if updown_fusion:
-            for param in self.topdown_fusion.parameters():
-                param.requires_grad = False
-        # if updown_fusion == 3:
-        #     for param in self.beta_net.parameters():
-        #         param.requires_grad = False
-
-    def add_weight_generator(self):
-        fuse_net = []
-        for input_ in (32, 64, 512):
-            fuse_net.append(Fusion_topdown(input_)) # trans
-            #fuse_net.append(WeightGenerateBlock(input_+3, 1)) # linear
-            #fuse_net.append(WeightGenerateBlock(input_ + 3, 2)) # nerf
-        self.topdown_fusion = nn.ModuleList(fuse_net).cuda()
-
     def add_extra_input(self):
         layer = self.encoder[0][0]
         # Creating new Conv2d layer
@@ -419,5 +263,4 @@ class UNet(BaseModel):
         new_layer.weight = nn.Parameter(new_weight)
         self.encoder[0][0] = new_layer
 
-        # for old_topdown_fusion, input_ in zip(self.topdown_fusion, (32, 64, 512)):
-        #     old_topdown_fusion.add_extra_embed(input_)
+
