@@ -151,6 +151,7 @@ def read_sensor_rel_pose(file_name):
 
 class _Dataset(Dataset):
     def __init__(self, conf, split):
+        np.random.seed(2023)
         self.root = conf.dataset_dir
         self.conf = conf
 
@@ -310,7 +311,6 @@ class _Dataset(Dataset):
         q2r_gt = ENU2sat@imu2ENU@body2imu # body -> sat
 
         if not pre_init:
-            np.random.seed(2023)
             # ramdom shift translation and rotation on yaw/heading
             YawShiftRange = 15 * np.pi / 180  # in 15 degree
             yaw = 2 * YawShiftRange * np.random.random() - YawShiftRange
