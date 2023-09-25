@@ -1,22 +1,21 @@
-# Satellite Image Based Cross-view Localization for Autonomous Vehicle
+# View Consistent Purification for Accurate Cross-View Localization
 
-Satellite Image Based Cross-view Localization for Autonomous Vehicle, Shan Wang, Yanhao Zhang, Ankit Vora, Akhil Perincherry and Hongdong Li, ICRA 2023 [Paper](https://arxiv.org/abs/2207.13506)
+View Consistent Purification for Accurate Cross-View Localization, Shan Wang, Yanhao Zhang, Akhil Perincherry, Ankit Vora and Hongdong Li, ICCV 2023 [Paper](https://arxiv.org/abs/2308.08110)
 
 ## Abstract
-Existing spatial localization techniques for autonomous vehicles mostly use a pre-built 3D-HD map, often constructed using a survey-grade 3D mapping vehicle, which is not only expensive but also laborious.  This paper shows that by using an off-the-shelf high-definition satellite image as a ready-to-use map, we are able to achieve cross-view vehicle localization up to a satisfactory accuracy, providing a cheaper and more practical way for localization.  
-While the utilization of satellite imagery for cross-view localization is an established concept, the conventional methodology focuses primarily on image retrieval. This paper introduces a novel approach to cross-view localization that departs from the conventional image retrieval method. Specifically, our method develops (1) a Geometric-align Feature Extractor (GaFE) that leverages measured 3D points to bridge the geometric gap between ground and overhead views, (2) a Pose Aware Branch (PAB) adopting a triplet loss to encourage pose-aware feature extraction, and (3) a Recursive Pose Refine Branch (RPRB) using the Levenberg-Marquardt (LM) algorithm to align the initial pose towards the true vehicle pose iteratively. Our method is validated on KITTI and Ford Multi-AV Seasonal datasets as the ground view and Google Maps as the satellite view. The results demonstrate the superiority of our method in cross-view localization with median spatial and angular errors within $1$ meter and $1^\circ$, respectively.
+This paper proposes a fine-grained self-localization method for outdoor robotics that utilizes a flexible number of onboard cameras and readily accessible satellite images. The proposed method addresses limitations in existing cross-view localization methods that struggle to handle noise sources such as moving objects and seasonal variations. It is the first sparse visual-only method that enhances perception in dynamic environments by detecting view-consistent key points and their corresponding deep features from ground and satellite views, while removing off-the-ground objects and establishing homography transformation between the two views. Moreover, the proposed method incorporates a spatial embedding approach that leverages camera intrinsic and extrinsic information to reduce the ambiguity of purely visual matching, leading to improved feature matching and overall pose estimation accuracy. The method exhibits strong generalization and is robust to environmental changes, requiring only geo-poses as ground truth. Extensive experiments on the KITTI and Ford Multi-AV Seasonal datasets demonstrate that our proposed method outperforms existing state-of-the-art methods, achieving median spatial accuracy errors below $0.5$ meters along the lateral and longitudinal directions, and a median orientation accuracy error below $2^\circ$.
 
 <p align="center">
-  <a href="https://github.com/ShanWang-Shan/SIBCL.git"><img src="architecture.jpg" width="100%"/></a>
+  <a href="https://github.com/ShanWang-Shan/PureACL.git"><img src="architecture.pdf" width="100%"/></a>
 </p>
 
 ## Installation
 
-SIBCL is built with Python >=3.6 and PyTorch. The package includes code for both training and evaluation. Installing the package locally also installs the minimal dependencies listed in `requirements.txt`:
+PureACL is built with Python >=3.6 and PyTorch. The package includes code for both training and evaluation. Installing the package locally also installs the minimal dependencies listed in `requirements.txt`:
 
 ``` bash
-git clone https://github.com/ShanWang-Shan/SIBCL.git
-cd SIBCL/
+git clone https://github.com/ShanWang-Shan/PureACL.git
+cd PureACL/
 pip install -e .
 ```
 
@@ -78,35 +77,33 @@ FordAV/
 │  │  ├─ 2017-08-04-V2-Log*-FL-names.txt
 │  │  ├─ 2017-08-04-V2-Log*-RR-names.txt
 │  │  ├─ 2017-08-04-V2-Log*-SL-names.txt
-│  │  ├─ 2017-08-04-V2-Log*-SR-names.txt
-│  ├─ pcd/
-│  │  └─ *******.pcd
+│  │  └─2017-08-04-V2-Log*-SR-names.txt
 │  ├─ Satellit_Image_18
 │  │  └─ satellite_*_lat_*_long_*_zoom_18_size_640x640_scale_2.png 
 ├─ 2017-10-26-V2-Log*/
 └─ V2/
 ```
-To update your dataset path, you can modify the "default_conf.dataset_dir" in the following files: "pixloc/pixlib/dataset/kitti.py" and "pixloc/pixlib/dataset/ford.py" or in your training/evaluation script. Additionally, if you wish to change the trajectory for the Ford-CVL dataset, you can adjust the "log_id_train/val/test" in the "pixloc/pixlib/dataset/ford.py" file.
+To update your dataset path, you can modify the "default_conf.dataset_dir" in the following files: "PureACL/pixlib/dataset/kitti.py" and "PureACL/pixlib/dataset/ford.py" or in your training/evaluation script. Additionally, if you wish to change the trajectory for the Ford-CVL dataset, you can adjust the "log_id_train/val/test" in the "PureACL/pixlib/dataset/ford.py" file.
 
 
 ## Models
-Weights of the model trained on *KITTI-CVL* and *Ford-CVL*, hosted [here](https://drive.google.com/drive/folders/1myNYAREvbbJGoWyEYtzJ_fna_na1-buO?usp=drive_link).
+Weights of the model trained on *KITTI-CVL* and *Ford-CVL*, hosted [here](https://drive.google.com/drive/folders/1X8pPmBYfLSYwiklQM_f67rInXAGVkTSQ?usp=sharing).
 
 
 ## Evaluation
 
-To perform the SIBCL, simply launch the corresponding run script:
+To perform the PureACL, simply launch the corresponding run script:
 
 ```
-python -m pixloc.evaluation
+python -m PureACL.evaluation
 ```
 
 ## Training
 
-To train the SIBCL, simply launch the corresponding run script:
+To train the PureACL, simply launch the corresponding run script:
 
 ```
-python -m pixloc.pixlib.train
+python -m PureACL.pixlib.train
 ```
 
 ## BibTex Citation
@@ -114,15 +111,14 @@ python -m pixloc.pixlib.train
 Please consider citing our work if you use any of the ideas presented in the paper or code from this repo:
 
 ```
-@inproceedings{
-  wang2023satellite,
-  title={Satellite image based cross-view localization for autonomous vehicle},
-  author={Wang, Shan and Zhang, Yanhao and Vora, Ankit and Perincherry, Akhil and Li, Hengdong},
-  booktitle={2023 IEEE International Conference on Robotics and Automation (ICRA)},
-  pages={3592--3599},
-  year={2023},
-  organization={IEEE}
+@misc{wang2023view,
+      title={View Consistent Purification for Accurate Cross-View Localization}, 
+      author={Shan Wang and Yanhao Zhang and Akhil Perincherry and Ankit Vora and Hongdong Li},
+      year={2023},
+      eprint={2308.08110},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV}
 }
 ```
 
-Thanks to the work of [Paul-Edouard Sarlin](psarlin.com/) et al., the code of this repository borrows heavily from their [psarlin.com/pixloc](https://psarlin.com/pixloc) , and we follow the same pipeline to verify the effectiveness of our solution.
+Thanks to the work of [Paul-Edouard Sarlin](psarlin.com/) et al., the code of this repository borrows heavily from their [psarlin.com/pixloc](https://psarlin.com/pixloc), and we follow the same pipeline to verify the effectiveness of our solution.
