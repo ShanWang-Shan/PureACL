@@ -5,7 +5,7 @@ Created on Fri Dec  4 11:44:19 2020
 @author: loocy
 """
 
-from sidfm.pixlib.datasets.base_dataset import BaseDataset
+from PureACL.pixlib.datasets.base_dataset import BaseDataset
 import numpy as np
 import os
 from PIL import Image, ImageFile
@@ -17,8 +17,8 @@ import ford_data_process.gps_coord_func as gps_func
 import random
 import cv2
 from glob import glob
-from sidfm.pixlib.datasets.transformations import quaternion_matrix, euler_matrix
-from sidfm.pixlib.geometry import Camera, Pose
+from PureACL.pixlib.datasets.transformations import quaternion_matrix, euler_matrix
+from PureACL.pixlib.geometry import Camera, Pose
 import open3d as o3d
 import yaml
 ImageFile.LOAD_TRUNCATED_IMAGES = True # add for 'broken data stream'
@@ -29,7 +29,7 @@ gt_from_gps = True #ture: pose gt from gps, False: pose gt from NED pose gt
 sat_dir = 'Satellite_Images_18'
 sat_zoom = 18
 log_id_train = "2017-08-04-V2-Log4"
-log_id_val = "2017-07-24-V2-Log4"
+log_id_val = "2017-10-26-V2-Log4" #"2017-07-24-V2-Log4"
 log_id_test = "2017-10-26-V2-Log4"
 map_points_dir = 'pcd'
 lidar_dir = 'lidar_blue_pointcloud'

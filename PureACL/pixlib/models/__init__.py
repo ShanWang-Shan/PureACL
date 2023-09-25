@@ -1,5 +1,5 @@
-from sidfm.pixlib.utils.tools import get_class
-from sidfm.pixlib.models.base_model import BaseModel
+from PureACL.pixlib.utils.tools import get_class
+from PureACL.pixlib.models.base_model import BaseModel
 
 
 def get_model(name):

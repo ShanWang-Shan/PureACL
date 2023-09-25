@@ -8,10 +8,10 @@ import logging
 from copy import deepcopy
 import omegaconf
 
-from sidfm.pixlib.models.base_model import BaseModel
-from sidfm.pixlib.models import get_model
-from sidfm.pixlib.models.utils import masked_mean, merge_confidence_map, extract_keypoints, camera_to_onground
-from sidfm.pixlib.geometry.losses import scaled_barron
+from PureACL.pixlib.models.base_model import BaseModel
+from PureACL.pixlib.models import get_model
+from PureACL.pixlib.models.utils import masked_mean, merge_confidence_map, extract_keypoints, camera_to_onground
+from PureACL.pixlib.geometry.losses import scaled_barron
 
 
 logger = logging.getLogger(__name__)

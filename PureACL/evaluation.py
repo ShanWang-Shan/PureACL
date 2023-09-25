@@ -8,34 +8,31 @@ import os
 import math
 from scipy.io import savemat
 
-Dataset = 'ford' #'kitti' #'ford' #
-exp = 'ford_pe' #'kitti'#  #'ford' #
+Dataset = 'ford' #'kitti'
+exp = 'ford' #'kitti'
 
-from sidfm.pixlib.utils.tensor import batch_to_device, map_tensor
-from sidfm.pixlib.utils.tools import set_seed
-from sidfm.pixlib.utils.experiments import load_experiment
-from sidfm.visualization.viz_2d import (
+from PureACL.pixlib.utils.tensor import batch_to_device, map_tensor
+from PureACL.pixlib.utils.tools import set_seed
+from PureACL.pixlib.utils.experiments import load_experiment
+from PureACL.visualization.viz_2d import (
     plot_images, plot_keypoints, plot_matches, cm_RdGn,
     features_to_RGB, add_text, save_plot)
-from sidfm.pixlib.models.utils import merge_confidence_map
+from PureACL.pixlib.models.utils import merge_confidence_map
 
 data_conf = {
     'train_batch_size': 1,
     'test_batch_size': 1,
     'num_workers': 0,
-    'mul_query': 2,
+    'mul_query': 2, # 0: 1 image input, 1: 2 image inputs, 2: 4 image inputs
 }
 
 
 if Dataset == 'ford':
-    from sidfm.pixlib.datasets.ford import FordAV
+    from PureACL.pixlib.datasets.ford import FordAV
     dataset = FordAV(data_conf)
 elif Dataset == 'kitti':
-    from sidfm.pixlib.datasets.kitti import Kitti
+    from PureACL.pixlib.datasets.kitti import Kitti
     dataset = Kitti(data_conf)
-elif Dataset == 'robotcar':
-    from sidfm.pixlib.datasets.robotcar import RobotCar
-    dataset = RobotCar(data_conf)
 else:
     print("not support dataset")
 

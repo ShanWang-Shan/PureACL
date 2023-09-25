@@ -1,5 +1,5 @@
-from sidfm.pixlib.utils.tools import get_class
-from sidfm.pixlib.datasets.base_dataset import BaseDataset
+from PureACL.pixlib.utils.tools import get_class
+from PureACL.pixlib.datasets.base_dataset import BaseDataset
 
 
 def get_dataset(name):

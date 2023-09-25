@@ -10,7 +10,7 @@ import torch.nn as nn
 
 from .base_model import BaseModel
 from .utils import checkpointed
-from sidfm.pixlib.models.utils import camera_to_onground
+from PureACL.pixlib.models.utils import camera_to_onground
 
 # for 1 unet test
 two_confidence = True # False when only grd
@@ -229,6 +229,14 @@ class UNet(BaseModel):
 
     def metrics(self, pred, data):
         raise NotImplementedError
+
+    def add_extra_input(self):
+        layer = self.encoder[0][0]
+        # Creating new Conv2d layer
+        new_layer = nn.Conv2d(6,64,kernel_size=3,padding=1).to(layer.weight)
+        new_weight = torch.cat([layer.weight.clone(), new_layer.weight[:,3:].clone()], dim=1)
+        new_layer.weight = nn.Parameter(new_weight)
+        self.encoder[0][0] = new_layer
 
 
 

@@ -19,11 +19,11 @@ from torch.utils.tensorboard import SummaryWriter
 from datasets import get_dataset
 from models import get_model
 from utils.stdout_capturing import capture_outputs
-from sidfm.pixlib.utils.tools import AverageMetric, MedianMetric, set_seed, fork_rng
-from sidfm.pixlib.utils.tensor import batch_to_device
-from sidfm.pixlib.utils.experiments import (delete_old_checkpoints, get_last_checkpoint, get_best_checkpoint)
-from sidfm.settings import TRAINING_PATH
-from sidfm import logger
+from PureACL.pixlib.utils.tools import AverageMetric, MedianMetric, set_seed, fork_rng
+from PureACL.pixlib.utils.tensor import batch_to_device
+from PureACL.pixlib.utils.experiments import (delete_old_checkpoints, get_last_checkpoint, get_best_checkpoint)
+from PureACL.settings import TRAINING_PATH
+from PureACL import logger
 
 import numpy as np
 import datetime
@@ -426,7 +426,7 @@ if __name__ == '__main__':
     parser.add_argument('--dotlist', nargs='*', default=["data.name=ford",
                                                          "data.num_workers=0","data.train_batch_size=1","data.test_batch_size=1",
                                                          "data.mul_query=2",# 0: 1 image input, 1: 2 image inputs, 2: 4 image inputs #ford height:1.6 kitti:1.65
-                                                         "train.lr=1e-4","model.name=two_view_refiner"])
+                                                         "train.lr=1e-5","model.name=two_view_refiner"])
     args = parser.parse_intermixed_args()
 
     logger.info(f'Starting experiment {args.experiment}')
