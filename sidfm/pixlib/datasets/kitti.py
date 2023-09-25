@@ -20,7 +20,6 @@ import random
 from sidfm.pixlib.datasets.transformations import euler_matrix
 from sidfm.pixlib.geometry import Camera, Pose
 
-pre_init = False
 satmap_zoom = 18 
 satmap_dir = 'satmap_'+str(satmap_zoom)
 grdimage_dir = 'raw_data'
@@ -173,14 +172,6 @@ class _Dataset(Dataset):
 
                 self.file_name.append(line)
 
-        if 0: # for 1 item
-            self.file_name = random.sample(self.file_name, 1)
-        if 0:  # for debug
-            if split == 'train':
-                self.file_name = random.sample(self.file_name, len(self.file_name)//10)
-            else:
-                self.file_name = random.sample(self.file_name, len(self.file_name)//20)
-
     def __len__(self):
         return len(self.file_name)
 
@@ -310,46 +301,18 @@ class _Dataset(Dataset):
         imu2ENU = Pose.from_4x4mat(euler_matrix(roll, pitch, heading))# grd_x:east, grd_y:north, grd_z:up
         q2r_gt = ENU2sat@imu2ENU@body2imu # body -> sat
 
-        if not pre_init:
-            # ramdom shift translation and rotation on yaw/heading
-            YawShiftRange = 15 * np.pi / 180  # in 15 degree
-            yaw = 2 * YawShiftRange * np.random.random() - YawShiftRange
-            # R_yaw = torch.tensor([[np.cos(yaw), -np.sin(yaw), 0], [np.sin(yaw), np.cos(yaw), 0], [0, 0, 1]])
-            TShiftRange = 5  # in 5 meter
-            T = 2 * TShiftRange * np.random.rand((3)) - TShiftRange
-            T[2] = 0  # no shift on height
+        # ramdom shift translation and rotation on yaw/heading
+        YawShiftRange = 15 * np.pi / 180  # in 15 degree
+        yaw = 2 * YawShiftRange * np.random.random() - YawShiftRange
+        # R_yaw = torch.tensor([[np.cos(yaw), -np.sin(yaw), 0], [np.sin(yaw), np.cos(yaw), 0], [0, 0, 1]])
+        TShiftRange = 5  # in 5 meter
+        T = 2 * TShiftRange * np.random.rand((3)) - TShiftRange
+        T[2] = 0  # no shift on height
 
-            # shift = Pose.from_Rt(R_yaw,T)
-            R_yaw = euler_matrix(0, 0, yaw)
-            shift = Pose.from_Rt(R_yaw[:3,:3], T)
-            q2r_init = shift @ q2r_gt
-        else:
-            # use previous pose as initial pose
-            if int(image_no[:-4]) == 0:
-                q2r_init = q2r_gt
-            else:
-                pre_image_no = int(image_no[:-4])-1
-                pre_image_no = "{:010d}".format(pre_image_no)
-                pre_oxts_file_name = os.path.join(self.root, grdimage_dir, drive_dir, oxts_dir,
-                                              pre_image_no + '.txt')
-                with open(pre_oxts_file_name, 'r') as f:
-                    content = f.readline().split(' ')
-                pre_location = [float(content[0]), float(content[1]), float(content[2])]
-                pre_roll, pre_pitch, pre_heading = float(content[3]), float(content[4]), float(content[5])
-                # shift of previous gps
-                dx, dy = gps_func.angular_distance_to_xy_distance_v2(location[0],
-                                                                     location[1], pre_location[0], pre_location[1])
-                if dx > 15 or dy > 15:
-                    # not coutinue frames
-                    q2r_init = q2r_gt
-                else:
-                    pre_imu2ENU = Pose.from_4x4mat(euler_matrix(pre_roll, pre_pitch, pre_heading))  # grd_x:east, grd_y:north, grd_z:up
-                    # add ne shift
-                    # get the pixel offsets of car pose
-                    de_pixel = dx / meter_per_pixel # along the east direction
-                    dn_pixel = dy / meter_per_pixel # along the north direction
-                    enu_shift = Pose.from_Rt(np.eye(3),np.array([de_pixel,dn_pixel,0]))
-                    q2r_init = ENU2sat @ enu_shift @ pre_imu2ENU @ body2imu  # body -> sat
+        # shift = Pose.from_Rt(R_yaw,T)
+        R_yaw = euler_matrix(0, 0, yaw)
+        shift = Pose.from_Rt(R_yaw[:3,:3], T)
+        q2r_init = shift @ q2r_gt
 
         # scene
         data = {
@@ -362,90 +325,6 @@ class _Dataset(Dataset):
         }
         if self.conf['mul_query']:
             data['query_1'] = grd_image_r
-
-        # debug
-        if 0:
-            fig = plt.figure(figsize=plt.figaspect(0.5))
-            ax1 = fig.add_subplot(1, 2, 1)
-            ax2 = fig.add_subplot(1, 2, 2)
-
-            color_image0 = transforms.functional.to_pil_image(grd_left, mode='RGB')
-            color_image0 = np.array(color_image0)
-            if self.conf['mul_query']:
-                # debug other grd_map
-                color_image0 = transforms.functional.to_pil_image(grd_right, mode='RGB')
-            # debug satellite map
-            color_image1 = transforms.functional.to_pil_image(sat_map, mode='RGB')
-            color_image1 = np.array(color_image1)
-
-            ax1.imshow(color_image0)
-            ax2.imshow(color_image1)
-            #ax2.imshow(color_image1[380:900, 380:900])
-
-            # camera position
-            # camera gt position
-            origin = torch.zeros(3)
-            origin_2d_gt, _ = data['ref']['camera'].world2image(data['T_q2r_gt'] * origin)
-            origin_2d_init, _ = data['ref']['camera'].world2image(data['T_q2r_init'] * origin)
-            direct = torch.tensor([6.,0,0])
-            direct = torch.tensor([0., 0, 0])
-            direct = data['query']['T_w2cam'].inv()*direct
-            direct_2d_gt, _ = data['ref']['camera'].world2image(data['T_q2r_gt'] * direct)
-            direct_2d_init, _ = data['ref']['camera'].world2image(data['T_q2r_init'] * direct)
-            origin_2d_gt = origin_2d_gt.squeeze(0)
-            origin_2d_init = origin_2d_init.squeeze(0)
-            direct_2d_gt = direct_2d_gt.squeeze(0)
-            direct_2d_init = direct_2d_init.squeeze(0)
-
-            # plot the init direction of the body frame
-            plt.scatter(x=origin_2d_init[0], y=origin_2d_init[1], c='r', s=10)
-            plt.quiver(origin_2d_init[0], origin_2d_init[1], direct_2d_init[0] - origin_2d_init[0],
-                       origin_2d_init[1] - direct_2d_init[1], color=['r'], scale=None)
-            # plot the gt direction of the body frame
-            plt.scatter(x=origin_2d_gt[0], y=origin_2d_gt[1], c='g', s=10)
-            plt.quiver(origin_2d_gt[0], origin_2d_gt[1], direct_2d_gt[0] - origin_2d_gt[0],
-                       origin_2d_gt[1] - direct_2d_gt[1], color=['g'], scale=None)
-            plt.show()
-            print(idx,file_name, pitch, roll)
-
-        # debug projection
-        if 0:#idx % 50 == 0:
-            if self.conf['mul_query'] > 0:
-                query_list = ['query', 'query_1']
-            else:
-                query_list = ['query']
-            # project ground to sat
-            for q in query_list:
-                E = data['T_q2r_gt']@data[q]['T_w2cam'].inv()
-                N = torch.einsum('...ij,...cj->...ci', data[q]['T_w2cam'].R, data['normal'])
-                tran_sat = homography_trans(data['ref']['image'], data[q]['camera'], data['ref']['camera'], E, N.squeeze(0), data[q]['camera_h'])
-                fig = plt.figure(figsize=plt.figaspect(1.))
-                ax1 = fig.add_subplot(2, 2, 1)
-                ax2 = fig.add_subplot(2, 2, 2)
-                ax3 = fig.add_subplot(2, 2, 3)
-                ax4 = fig.add_subplot(2, 2, 4)
-                ax1.imshow(tran_sat)
-                q_img = transforms.functional.to_pil_image(data[q]['image'], mode='RGB')
-                ax2.imshow(q_img)
-                fusion = Image.blend(q_img.convert("RGBA"), tran_sat.convert("RGBA"), alpha=.6)
-                ax4.imshow(fusion)
-                sat_img = transforms.functional.to_pil_image(data['ref']['image'], mode='RGB')
-                ax3.imshow(sat_img)
-                # camera gt position
-                origin = torch.zeros(3)
-                origin_2d_gt, _ = data['ref']['camera'].world2image(data['T_q2r_gt'] * origin)
-                direct = torch.tensor([0, 0, 20.])
-                direct = data[q]['T_w2cam'].inv() * direct
-                direct_2d_gt, _ = data['ref']['camera'].world2image(data['T_q2r_gt'] * direct)
-                origin_2d_gt = origin_2d_gt.squeeze(0)
-                direct_2d_gt = direct_2d_gt.squeeze(0)
-                # plot the gt direction of the body frame
-                ax3.scatter(x=origin_2d_gt[0], y=origin_2d_gt[1], c='r', s=5)
-                ax3.quiver(origin_2d_gt[0], origin_2d_gt[1], direct_2d_gt[0] - origin_2d_gt[0],
-                           origin_2d_gt[1] - direct_2d_gt[1], color=['r'], scale=None)
-
-                plt.show()
-                print(left_img_name, q)
 
         return data
 

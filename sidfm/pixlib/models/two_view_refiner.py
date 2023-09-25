@@ -7,73 +7,16 @@ from torch.nn import functional as nnF
 import logging
 from copy import deepcopy
 import omegaconf
-import numpy as np
 
 from sidfm.pixlib.models.base_model import BaseModel
 from sidfm.pixlib.models import get_model
 from sidfm.pixlib.models.utils import masked_mean, merge_confidence_map, extract_keypoints, camera_to_onground
 from sidfm.pixlib.geometry.losses import scaled_barron
-from sidfm.visualization.viz_2d import features_to_RGB,plot_images,plot_keypoints
-from sidfm.pixlib.utils.tensor import map_tensor
-import matplotlib as mpl
-
-from matplotlib import pyplot as plt
-from torchvision import transforms
-import cv2
-import time
-
 
 
 logger = logging.getLogger(__name__)
 
 pose_loss = True
-
-# for debug
-def homography_trans(image_ref, image_q, I_ref, I_q, T_w2cam,T_q2r, height, N_q):
-    # inputs:
-    #   image_ref:  image
-    #   I_ref,I_q: camera
-    #   E: pose ex q->ref
-    #   height: rotation of target camera
-    #   N_q: normal: tensor, size 1,3
-    # return:
-    #   save q image
-
-    h, w = image_q.shape[-2:]
-
-    # get back warp matrix
-    i = torch.arange(0, h)
-    j = torch.arange(0, w)
-    ii, jj = torch.meshgrid(i, j)  # i:h,j:w
-    uv = torch.stack([jj, ii], dim=-1).float().to(N_q)  # shape = [h, w, 3]
-
-    p_q = I_q.image2world(uv)
-    p_grd = camera_to_onground(p_q, T_w2cam, height, N_q)
-    p_ref = T_q2r * p_grd
-    uv, _ = I_ref.world2image(p_ref)
-
-    # lefttop to center u:south, v: up from center to -1,-1 top left, 1,1 buttom right
-    center = torch.tensor([image_ref.size(-1) // 2, image_ref.size(-2) // 2]).to(uv)
-    uv_center = (uv - center)/center
-
-    out = nnF.grid_sample(image_ref.unsqueeze(0), uv_center.unsqueeze(0), mode='bilinear',
-                        padding_mode='zeros')
-    out = transforms.functional.to_pil_image(out.squeeze(0), mode='RGB')
-    out_image = np.array(out)
-    plt.imshow(out_image)
-    plt.show()
-
-    # compare ori q and ref->q
-    fig = plt.figure(figsize=plt.figaspect(0.5))
-    ax1 = fig.add_subplot(2, 1, 1)
-    ax2 = fig.add_subplot(2, 1, 2)
-    image_ori_q = transforms.functional.to_pil_image(image_q, mode='RGB')
-    image_ori_q = np.array(image_ori_q)
-    ax1.imshow(image_ori_q)
-    ax2.imshow(out_image)
-    plt.show()
-
-    return
 
 def get_weight_from_reproloss(err):
     # the reprojection loss is from 0 to 16.67 ,tensor[B]
@@ -171,8 +114,6 @@ class TwoViewRefiner(BaseModel):
             # turn grd key points from 2d to 3d, assume points are on ground
             p2d_c_key = data[q]['camera'].image2world(p2d_grd_key) # 2D->3D scale unknown
             p3d_grd_key = camera_to_onground(p2d_c_key, data[q]['T_w2cam'], data[q]['camera_h'], data['normal'])
-            # debug to check the normal is correct, project grd2sat
-            #homography_trans(data['ref']['image'][0], data[q]['image'][0], data['ref']['camera'][0], data[q]['camera'][0], data[q]['T_w2cam'], data['T_q2r_gt'], data[q]['camera_h'], data['normal'])
             if q == 'query':
                 p3D_query = p3d_grd_key
             else:

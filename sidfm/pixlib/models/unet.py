@@ -15,13 +15,7 @@ from sidfm.pixlib.models.utils import camera_to_onground
 # for 1 unet test
 two_confidence = True # False when only grd
 max_dis = 200
-debug_pe = False
-visualize = False
 
-if debug_pe:
-    from matplotlib import pyplot as plt
-    import matplotlib as mpl
-    from sidfm.visualization.viz_2d import plot_images
 
 class DecoderBlock(nn.Module):
     def __init__(self, previous, skip, out, num_convs=1, norm=nn.BatchNorm2d):
@@ -190,31 +184,12 @@ class UNet(BaseModel):
             p3d_ongrd_q = camera_to_onground(p3d_c, data['T_w2cam'], data['camera_h'], data['normal'])
             dis = torch.sqrt((p3d_ongrd_q[..., 0]) ** 2 + (p3d_ongrd_q[..., 1]) ** 2) / max_dis
             dis = torch.where(dis > 1.2, torch.tensor(-1.).to(dis), dis)
-            #dis = torch.where(torch.logical_or(dis>1.2, ~valid), torch.tensor(-1.).to(dis), dis) # dis/max_dis, igonore far than max_dis
         else:
             p3d_q = torch.einsum('bij,bhwj->...bhwi', data['q2r'].inv().R, p3d_c)  # query world coordinate
             angle = p3d_q[..., 0] / torch.sqrt(p3d_q[..., 0] ** 2 + p3d_q[..., 1] ** 2)  # cos -1~1
             dis = torch.sqrt(p3d_q[..., 0] ** 2 + p3d_q[..., 1] ** 2)/max_dis
             height = -0.6 * torch.ones_like(p3d_q[..., 2]) # all -0.6 as max height
 
-        if debug_pe:
-            plt.imshow(image[0].permute(1, 2, 0).detach().cpu())
-            plt.axis("off")
-            plt.margins(0, 0)
-            plt.show()
-            for img in (angle[0], dis[0], height[0]):
-                # fig = plt.figure(figsize=plt.figaspect(1.))
-                # ax1 = fig.add_subplot(1, 1, 1)
-                # ax1.axis("off")
-                # im1 = ax1.imshow(img, vmin=-1, vmax=1, cmap='jet', aspect='auto')
-                # divider = make_axes_locatable(ax1)
-                # cax = divider.append_axes('right', size='5%', pad=0.1)
-                # fig.colorbar(im1, cax=cax, orientation='vertical')
-                # plt.show()
-                plot_images([img.detach().cpu()], cmaps=mpl.cm.gnuplot2, dpi=50)
-                axes = plt.gcf().axes
-                axes[0].imshow(image[0].permute(1,2,0).detach().cpu(), alpha=0.2, extent=axes[0].images[0]._extent)
-                plt.show()
 
         extr = torch.stack([angle, height, dis], dim=1).to(device)  # shape = [b, 3, h, w]
         image = torch.cat([image, extr], dim=1) # shape = [b, 6, h, w]
@@ -255,12 +230,5 @@ class UNet(BaseModel):
     def metrics(self, pred, data):
         raise NotImplementedError
 
-    def add_extra_input(self):
-        layer = self.encoder[0][0]
-        # Creating new Conv2d layer
-        new_layer = nn.Conv2d(6,64,kernel_size=3,padding=1).to(layer.weight)
-        new_weight = torch.cat([layer.weight.clone(), new_layer.weight[:,3:].clone()], dim=1)
-        new_layer.weight = nn.Parameter(new_weight)
-        self.encoder[0][0] = new_layer
 
 
