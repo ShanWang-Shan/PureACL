@@ -151,7 +151,6 @@ class FordAV(BaseDataset):
 
 class _Dataset(Dataset):
     def __init__(self, conf, split):
-        np.random.seed(2023)
         self.root = conf.dataset_dir
         self.conf = conf
         if split == 'train':
