@@ -156,7 +156,7 @@ class _Dataset(Dataset):
         self.conf = conf
         if split == 'train':
             self.log_id = log_id_train
-        if split == 'val':
+        elif split == 'val':
             self.log_id = log_id_val
         else:
             self.log_id = log_id_test
