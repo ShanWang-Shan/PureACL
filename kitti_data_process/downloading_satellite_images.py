@@ -6,7 +6,7 @@
 
 # NOTE:
 # You need to provide a key
-keys = ['AIzaSyDC-pLZ5iR9TuSupwN6bHRvqhB0020AdD0']
+keys = ['']
 
 import requests
 from io import BytesIO
