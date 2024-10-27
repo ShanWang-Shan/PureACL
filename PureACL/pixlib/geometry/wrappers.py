@@ -340,7 +340,7 @@ class Camera(TensorWrapper):
     @autocast
     def project(self, p3d: torch.Tensor) -> Tuple[torch.Tensor]:
         '''Project 3D points into the camera plane and check for visibility.'''
-        if np.infty in self._data:
+        if np.inf in self._data:
             z = torch.ones_like(p3d[..., -1])
         else:
             z = p3d[..., -1]
@@ -351,7 +351,7 @@ class Camera(TensorWrapper):
         return p2d, valid
 
     def J_project(self, p3d: torch.Tensor):
-        if np.infty in self._data:
+        if np.inf in self._data:
             x, y = p3d[..., 0], p3d[..., 1]
             ones = torch.ones_like(x)
             zero = torch.zeros_like(x)
@@ -410,7 +410,7 @@ class Camera(TensorWrapper):
             p3d_xy = (p2d - self.c[:, None, None, :]) / self.f[:, None, None, :]
         else:
             p3d_xy = (p2d - self.c.unsqueeze(-2)) / self.f.unsqueeze(-2)
-        if np.infty in self._data:
+        if np.inf in self._data:
             # para projection, z unknown
             p3d = torch.cat([p3d_xy, torch.zeros_like(p3d_xy[..., :1])], dim=-1)
         else:

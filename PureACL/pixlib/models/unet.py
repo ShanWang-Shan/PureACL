@@ -66,6 +66,7 @@ class UNet(BaseModel):
         'do_average_pooling': False,
         'compute_uncertainty': True,
         'checkpointed': False,  # whether to use gradient checkpointing
+        'input_h':384, # support lateset checkpoint, just for debug
     }
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
@@ -237,6 +238,10 @@ class UNet(BaseModel):
         new_weight = torch.cat([layer.weight.clone(), new_layer.weight[:,3:].clone()], dim=1)
         new_layer.weight = nn.Parameter(new_weight)
         self.encoder[0][0] = new_layer
+
+    def init_confidence(self):
+        for uncertainty in self.uncertainty:
+            torch.nn.init.xavier_uniform(uncertainty[0].weight)
 
 
 

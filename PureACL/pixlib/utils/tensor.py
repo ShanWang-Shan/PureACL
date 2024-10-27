@@ -1,5 +1,7 @@
-from torch._six import string_classes
+#from torch._six import string_classes
 import collections.abc as collections
+
+string_classes = (str, bytes)
 
 
 def map_tensor(input_, func):

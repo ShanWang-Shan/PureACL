@@ -81,7 +81,7 @@ def homography_trans(image, I_tar, I_src, E, N, height):
 
 class Kitti(BaseDataset):
     default_conf = {
-        'dataset_dir': '/data/dataset/Kitti', #"/home/shan/data/Kitti", #
+        'dataset_dir': '/datasets/work/d61-jca20-recon/work/Shan/dataset/Kitti', #"/home/shan/data/Kitti", #
         'mul_query': False,
     }
 
@@ -272,16 +272,17 @@ class _Dataset(Dataset):
         x_sg, y_sg = gps_func.angular_distance_to_xy_distance_v2(sat_gps[0], sat_gps[1], location[0],
                                                                  location[1])
         meter_per_pixel = Kitti_utils.get_meter_per_pixel(satmap_zoom, scale=1)
-        x_sg = int(x_sg / meter_per_pixel)
-        y_sg = int(-y_sg / meter_per_pixel)
+        #x_sg = int(x_sg / meter_per_pixel)
+        #y_sg = int(-y_sg / meter_per_pixel)
         # query to satellite R
         ENU2sat_R = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])  # up->-sat z; east->sat x, north->-sat y
-        ENU2sat = Pose.from_Rt(ENU2sat_R, np.array([0.,0,0])) #np.array([x_sg,y_sg,0]) shift in K
+        ENU2sat = Pose.from_Rt(ENU2sat_R, np.array([x_sg,-y_sg,0])) #np.array([x_sg,y_sg,0]) shift in K
 
         # sat
         camera = Camera.from_colmap(dict(
             model='SIMPLE_PINHOLE',
-            params=(1 / meter_per_pixel, x_sg+satellite_ori_size / 2.0, y_sg+satellite_ori_size / 2.0, 0, 0, 0, 0, np.infty),
+            #params=(1 / meter_per_pixel, x_sg+satellite_ori_size / 2.0, y_sg+satellite_ori_size / 2.0, 0, 0, 0, 0, np.inf),
+            params=(1 / meter_per_pixel, satellite_ori_size / 2.0, satellite_ori_size / 2.0, 0, 0, 0, 0, np.inf),
             # np.infty for parallel projection
             width=int(satellite_ori_size), height=int(satellite_ori_size)))
         sat_image = {
@@ -304,7 +305,7 @@ class _Dataset(Dataset):
         YawShiftRange = 15 * np.pi / 180  # in 15 degree
         yaw = 2 * YawShiftRange * np.random.random() - YawShiftRange
         # R_yaw = torch.tensor([[np.cos(yaw), -np.sin(yaw), 0], [np.sin(yaw), np.cos(yaw), 0], [0, 0, 1]])
-        TShiftRange = 5  # in 5 meter
+        TShiftRange = 5 # in 5 meter
         T = 2 * TShiftRange * np.random.rand((3)) - TShiftRange
         T[2] = 0  # no shift on height
 
@@ -330,15 +331,15 @@ class _Dataset(Dataset):
 if __name__ == '__main__':
     # test to load 1 data
     conf = {
-        'dataset_dir': '/data/dataset/Kitti',  # "/home/shan/data/Kitti"'/home/shan/Dataset/Kitti', #
+        'dataset_dir': '/datasets/work/d61-jca20-recon/work/Shan/dataset/Kitti',  # "/home/shan/data/Kitti"'/home/shan/Dataset/Kitti', #
         'batch_size': 1,
         'num_workers': 0,
         'mul_query': False
     }
     dataset = Kitti(conf)
-    loader = dataset.get_data_loader('test', shuffle=False)  # or 'train' ‘val’
+    loader = dataset.get_data_loader('train', shuffle=False)  # or 'train' ‘val’
 
-    for i, data in zip(range(1000), loader):
+    for i, data in zip(range(100000), loader):
         print(i)
 
 

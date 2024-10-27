@@ -9,7 +9,7 @@ import logging
 from omegaconf import OmegaConf
 import omegaconf
 import torch
-from torch._six import string_classes
+#from torch._six import string_classes
 from torch.utils.data import DataLoader, Sampler, get_worker_info
 from torch.utils.data._utils.collate import (default_collate_err_msg_format,
                                              np_str_obj_array_pattern)
@@ -17,6 +17,7 @@ from torch.utils.data._utils.collate import (default_collate_err_msg_format,
 from ..utils.tools import set_num_threads, set_seed
 
 logger = logging.getLogger(__name__)
+string_classes = (str, bytes)
 
 
 class LoopSampler(Sampler):

@@ -137,7 +137,7 @@ def inverse_pose(pose):
 
 class FordAV(BaseDataset):
     default_conf = {
-        'dataset_dir': '/data/dataset/Ford_AV', #"/home/shan/data/FordAV", #'/data/FordAV', #
+        'dataset_dir': '/datasets/work/d61-jca20-recon/work/Shan/dataset/FordAV', #"/home/shan/data/FordAV", #'/data/FordAV', #
         'mul_query': 2
     }
 
@@ -258,8 +258,8 @@ class _Dataset(Dataset):
         dx, dy = gps_func.angular_distance_to_xy_distance_v2(satellite_gps[0], satellite_gps[1], query_gps[0],
                                                              query_gps[1])
         # get the pixel offsets of car pose
-        dx_pixel = dx / meter_per_pixel # along the east direction
-        dy_pixel = -dy / meter_per_pixel # along the north direction
+        #dx_pixel = dx / meter_per_pixel # along the east direction
+        #dy_pixel = -dy / meter_per_pixel # along the north direction
 
         if not gt_from_gps:
             query_ned = self.groundview_ned[idx, :]
@@ -268,8 +268,8 @@ class _Dataset(Dataset):
             dx = query_ned[1]-grdx+dx # long east
             dy = query_ned[0]-grdy+dy # lat north
             # get the pixel offsets of car pose
-            dx_pixel = dx / meter_per_pixel # along the east direction
-            dy_pixel = -dy / meter_per_pixel # along the north direction
+            #dx_pixel = dx / meter_per_pixel # along the east direction
+            #dy_pixel = -dy / meter_per_pixel # along the north direction
 
         heading = self.groundview_yaws[idx] * np.pi / 180.0
         roll = self.groundview_rolls[idx] * np.pi / 180.0
@@ -283,9 +283,11 @@ class _Dataset(Dataset):
         # ned: x: north, y: east, z:down
         ned2sat_r = np.array([[0,1,0],[-1,0,0],[0,0,1]]) #ned y->sat x; ned -x->sat y, ned z->sat z
         # to pose
-        ned2sat = Pose.from_Rt(ned2sat_r, np.array([0.,0,0])).float() # shift in K
+        #ned2sat = Pose.from_Rt(ned2sat_r, np.array([0.,0,0])).float() # shift in K
+        ned2sat = Pose.from_Rt(ned2sat_r, np.array([dx,-dy,0])).float() # shift in K
         camera = Camera.from_colmap(dict(
-            model='SIMPLE_PINHOLE', params=(1 / meter_per_pixel, dx_pixel+satellite_ori_size / 2.0, dy_pixel+satellite_ori_size / 2.0, 0,0,0,0,np.infty),#np.infty for parallel projection
+            #model='SIMPLE_PINHOLE', params=(1 / meter_per_pixel, dx_pixel+satellite_ori_size / 2.0, dy_pixel+satellite_ori_size / 2.0, 0,0,0,0,np.infty),#np.infty for parallel projection
+            model='SIMPLE_PINHOLE', params=(1 / meter_per_pixel, satellite_ori_size / 2.0, satellite_ori_size / 2.0, 0,0,0,0,np.inf),#np.infty for parallel projection
             width=int(satellite_ori_size), height=int(satellite_ori_size)))
 
         sat_image = {
@@ -398,7 +400,7 @@ class _Dataset(Dataset):
         YawShiftRange = 15 * np.pi / 180 #error degree
         yaw = 2 * YawShiftRange * np.random.random() - YawShiftRange
         # R_yaw = torch.tensor([[np.cos(yaw),-np.sin(yaw),0],  [np.sin(yaw),np.cos(yaw),0], [0, 0, 1]])
-        TShiftRange = 5
+        TShiftRange = 5 
         T = 2 * TShiftRange * np.random.rand((3)) - TShiftRange
         T[2] = 0  # no shift on height
         #print(f'in dataset: yaw:{yaw/np.pi*180},t:{T}')
