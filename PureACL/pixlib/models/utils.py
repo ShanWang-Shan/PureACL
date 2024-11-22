@@ -52,7 +52,7 @@ def merge_confidence_map(confidence, number):
     return c_last
 
 # shan add for key points extraction, from super point
-def extract_keypoints(confidence, topk=256, start_ratio=0.65):
+def extract_keypoints(confidence, topk=1024, start_ratio=0.6):
     """extrac key ponts from confidence map.
     Args:
         confidence: torch.Tensor with size (B,C,H,W).
@@ -67,10 +67,10 @@ def extract_keypoints(confidence, topk=256, start_ratio=0.65):
     w_end = -1
     h_end = -1
     radius = 4
-    if start_ratio != 0.65:
-        radius = 6
+    if confidence.size(-1) > 1200: # KITTI
+        radius = 5
 
-    #  only extract close to ground part (start_H:)
+        #  only extract close to ground part (start_H:)
     start_H = int(confidence.size(2)*start_ratio)
     confidence = confidence[:,:,start_H:h_end,:w_end].detach().clone()
 
