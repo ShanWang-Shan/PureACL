@@ -23,32 +23,6 @@ pip install -e .
 
 We construct our KITTI-CVL and Ford-CVL datasets by correcting the spatial-consistent satellite counterparts from Google Map \cite{google} according to these GPS tags. More specifically, we find the large region covering the vehicle trajectory and uniformly partition the region into overlapping satellite image patches. Each satellite image patch has a resolution of $1280\times 1280$ pixels. A script to download the latest satellite images is provided in (kitti/ford_data_process/downloading_satellite_iamges.py). For access to our collected satellite images, please send an inquiry email to shan.wang@anu.edu.au from an academic institution email address. The data is strictly for academic purposes. we will provide you with the download link.
 
-KITTI-CVL: Please first download the raw data (ground images) from [http://www.cvlibs.net/datasets/kitti/raw_data.php](http://www.cvlibs.net/datasets/kitti/raw_data.php), and store them according to different dates (not category). The split files can be downloaded [here](https://drive.google.com/drive/folders/12NLX1uoQae4aevFL7nIuvsahbJZozlEx?usp=sharing) and npy files can be downloaded [here](https://drive.google.com/drive/folders/1DML0ryEERCs1uiM501I-MJxSCjXaFFdS?usp=drive_link). Your dataset folder structure should be like this:
-```
-Kitti/
-├─ raw_data/
-│  ├─ 2011_09_26/
-│  │  ├─ 2011_09_26_drive_****_sync/
-│  │  │  ├─ image_**
-│  │  │  ├─ oxts/
-│  │  │  ├─ velodyne_points/
-│  │  ├─ calib_cam_to_cam.txt
-│  │  ├─ calib_imu_to_velo.txt
-│  │  └─ calib_velo_to_cam.txt
-│  ├─ 2011_09_28/
-│  ├─ 2011_09_29/
-│  ├─ 2011_09_30/
-│  ├─ 2011_10_03/
-│  ├─ gps.csv
-│  ├─ groundview_satellite_pair_18.npy
-│  ├─ satellite_gps_center.npy
-│  └─ kitti_split/
-│     ├─ test_files.txt
-│     ├─ val_files.txt
-│     └─ train_files.txt
-└─ satmap_18/
-   └─ satellite_*_lat_*_long_*_zoom_18_size_640x640_scale_2.png 
-```
 
 Ford-CVL: Please first download the raw data (ground images) from [https://avdata.ford.com/](https://avdata.ford.com/). We provide the script(ford_data_process/raw_data_downloader.sh) for raw data download and the script(ford_data_process/other_data_downloader.sh) for processed data download. Your dataset folder structure should be like this. If the link in the script file has expired or lacks the necessary permissions, please contact us.
 ```
@@ -87,7 +61,7 @@ To update your dataset path, you can modify the "default_conf.dataset_dir" in th
 
 
 ## Models
-Weights of the model trained on *KITTI-CVL* and *Ford-CVL*, hosted [here](https://drive.google.com/drive/folders/1X8pPmBYfLSYwiklQM_f67rInXAGVkTSQ?usp=sharing).
+Weights of the model trained on *Ford-CVL*, hosted [here](https://drive.google.com/drive/folders/1X8pPmBYfLSYwiklQM_f67rInXAGVkTSQ?usp=sharing).
 
 
 ## Evaluation
