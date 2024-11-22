@@ -21,7 +21,7 @@ pip install -e .
 
 ## Datasets
 
-We construct our KITTI-CVL and Ford-CVL datasets by correcting the spatial-consistent satellite counterparts from Google Map \cite{google} according to these GPS tags. More specifically, we find the large region covering the vehicle trajectory and uniformly partition the region into overlapping satellite image patches. Each satellite image patch has a resolution of $1280\times 1280$ pixels. A script to download the latest satellite images is provided in (kitti/ford_data_process/downloading_satellite_iamges.py). For access to our collected satellite images, please send an inquiry email to shan.wang@anu.edu.au from an academic institution email address. The data is strictly for academic purposes. we will provide you with the download link.
+We construct our Ford-CVL datasets by correcting the spatial-consistent satellite counterparts from Google Map \cite{google} according to these GPS tags. More specifically, we find the large region covering the vehicle trajectory and uniformly partition the region into overlapping satellite image patches. Each satellite image patch has a resolution of $1280\times 1280$ pixels. A script to download the latest satellite images is provided in (ford_data_process/downloading_satellite_iamges.py). For access to our collected satellite images, please send an inquiry email to shan.wang@anu.edu.au from an academic institution email address. The data is strictly for academic purposes. we will provide you with the download link.
 
 
 Ford-CVL: Please first download the raw data (ground images) from [https://avdata.ford.com/](https://avdata.ford.com/). We provide the script(ford_data_process/raw_data_downloader.sh) for raw data download and the script(ford_data_process/other_data_downloader.sh) for processed data download. Your dataset folder structure should be like this. If the link in the script file has expired or lacks the necessary permissions, please contact us.
@@ -57,7 +57,7 @@ FordAV/
 ├─ 2017-10-26-V2-Log*/
 └─ V2/
 ```
-To update your dataset path, you can modify the "default_conf.dataset_dir" in the following files: "PureACL/pixlib/dataset/kitti.py" and "PureACL/pixlib/dataset/ford.py" or in your training/evaluation script. Additionally, if you wish to change the trajectory for the Ford-CVL dataset, you can adjust the "log_id_train/val/test" in the "PureACL/pixlib/dataset/ford.py" file.
+To update your dataset path, you can modify the "default_conf.dataset_dir" in the following files:  "PureACL/pixlib/dataset/ford.py" or in your training/evaluation script. Additionally, if you wish to change the trajectory for the Ford-CVL dataset, you can adjust the "log_id_train/val/test" in the "PureACL/pixlib/dataset/ford.py" file.
 
 
 ## Models
